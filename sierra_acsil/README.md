@@ -234,3 +234,19 @@ Reddit blocks the search crawler, nothing from 4chan /biz/ was indexed, and this
 | ICT Silver Bullet | Not re-tested | — | — | — | Two independent backtests found it lost after costs in every test 2020–2025 |
 
 **Result: none of the forum strategies passed, so no new script was built.** The only forum-popular idea that held up is the noise-band momentum already in this suite.
+
+---
+
+## Follow-up (2026-11-10): do the same rules work on MES?
+
+`research/mes_check.py` runs the three reference models on ES 1-minute data (same source and period), 1 MES, $4.00 per round trip (0.8 point).
+
+| | MNQ PF | MNQ $/month | MES PF | MES $/month | Daily correlation MNQ vs MES |
+|---|---|---|---|---|---|
+| NBM | 1.43 | 246 | 1.20 | 81 | 0.67 |
+| GOD | 1.35 | 89 | **0.80** | **−36** | 0.45 |
+| TVP | 1.55 | 152 | 1.29 | 57 | 0.47 |
+
+- **NBM and TVP carry over to ES**, at about a third of the dollars per contract. That is evidence the two rules are not fitted to NQ alone.
+- **GOD does not carry over.** It loses on ES in 2017–2021 and is flat after. Treat GOD as the least proven of the three: an NQ-specific result with a fill assumption that also matters (see Part F).
+- **Adding MES does not improve the portfolio.** 1 MNQ + 1 MES per script: $588 a month, Sharpe 1.39, drawdown −$4,048, and 2017 and 2019 turn into losses of −$1,912 and −$1,656. 2 MNQ per script: $975 a month, Sharpe 1.68, drawdown −$4,076. If you want more size, add MNQ contracts, not MES.
