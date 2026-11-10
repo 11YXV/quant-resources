@@ -26,7 +26,7 @@ struct SCString { std::string s; SCString() {} SCString(const char* c) : s(c) {}
 struct SCDateTime { int d = 0, t = 0; SCDateTime() {} SCDateTime(int D, int T) : d(D), t(T) {} int GetDate() const { return d; } int GetTime() const { return t; } bool IsDateSet() const { return d != 0; } };
 struct s_SCNewOrder { int OrderType = 0; double Price1 = 1e300; double OrderQuantity = 0; SCTimeInForceEnum TimeInForce = SCT_TIF_UNSET;
   char AttachedOrderStop1Type = SCT_ORDERTYPE_STOP; double Stop1Offset = 0.0; SCString TextTag; uint32_t InternalOrderID = 0, Stop1InternalOrderID = 0; };
-struct s_SCTradeOrder { uint32_t InternalOrderID = 0; double Price1 = 0; int OrderStatusCode = 0; double OrderQuantity = 0; };
+struct s_SCTradeOrder { uint32_t InternalOrderID = 0; double Price1 = 0; int OrderStatusCode = 0; double OrderQuantity = 0; double AvgFillPrice = 0, LastModifyPrice1 = 0; };
 struct s_SCPositionData { double PositionQuantity = 0, AveragePrice = 0; int WorkingOrdersExist = 0, TotalTrades = 0; double CumulativeProfitLoss = 0, LastTradeProfitLoss = 0; };
 struct MockInput { std::string Name; int kind = 0; int iv = 0; double fv = 0; 
   void SetYesNo(int v) { iv = v; } void SetTime(int v) { iv = v; } void SetInt(int v) { iv = v; } void SetIntLimits(int, int) {}
@@ -37,7 +37,7 @@ struct MockSubgraph { std::string Name; int DrawStyle = 0; unsigned PrimaryColor
 typedef MockSubgraph& SCSubgraphRef;
 struct MockArr { std::vector<float> v; float operator[](int i) const { return v[i]; } };
 struct MockDT { std::vector<int> d, t; int DateAt(int i) const { return d[i]; } int TimeAt(int i) const { return t[i]; } };
-struct MOrder { uint32_t id; int type, side, status; double price, qty, offset; uint32_t parent, child; };
+struct MOrder { uint32_t id; int type, side, status; double price, qty, offset; uint32_t parent, child; double fill = 0; };
 struct s_sc;
 struct Broker {
   std::vector<MOrder> ord; double pos = 0, avg = 0, cum = 0, last = 0, px = 0, prev = 0, usdPerPt = 2.0; int trades = 0; uint32_t nextId = 100;
@@ -52,17 +52,23 @@ struct Broker {
     if (out) fprintf(out, "%d,%d,%d,%d,%d,%.2f,%.2f,%.0f,%.2f\n", eDate, eTod, date, tod, d, avg, p, q, pl);
     if (pos == 0) ++trades;
     if (qty > q) { pos = side * (qty - q); avg = p; eDate = date; eTod = tod; } }
-  void fillParent(MOrder& o, double p) { o.status = SCT_OSC_FILLED; exec(o.side, o.qty, p);
+  void fillParent(MOrder& o, double p) { o.status = SCT_OSC_FILLED; o.fill = p; exec(o.side, o.qty, p);
     if (MOrder* c = get(o.child)) { c->price = p - o.side * c->offset; c->status = SCT_OSC_OPEN; } }
   void tick(int D, int T, double p) { date = D; tod = T; prev = px == 0 ? p : px; px = p;
     for (size_t n = 0; n < ord.size(); ++n) { MOrder o = ord[n]; if (o.status != SCT_OSC_OPEN || o.type != SCT_ORDERTYPE_STOP) continue;
       const bool hit = o.side > 0 ? p >= o.price : p <= o.price; if (!hit) continue;
       const bool crossed = o.side > 0 ? prev < o.price : prev > o.price; const double fp = crossed ? o.price : p;
       if (o.parent == 0) fillParent(ord[n], fp);
-      else { ord[n].status = SCT_OSC_FILLED; exec(o.side, std::fmin(o.qty, std::fabs(pos)), fp); } } }
+      else { ord[n].status = SCT_OSC_FILLED; ord[n].fill = fp; exec(o.side, std::fmin(o.qty, std::fabs(pos)), fp); } } }
+  int allowWorking = 0;
+  int cancelOne(uint32_t id) { MOrder* o = get(id); if (!o || !IsWorkingOrderStatus(o->status)) return 0; o->status = SCT_OSC_CANCELED;
+    if (MOrder* c = get(o->child)) if (IsWorkingOrderStatus(c->status)) c->status = SCT_OSC_CANCELED; return 1; }
+  int modify(uint32_t id, double p) { MOrder* o = get(id); if (!o || o->status != SCT_OSC_OPEN) return -1; o->price = p; return 1; }
   int submit(s_SCNewOrder& n, int side, int maxPos) {
-    if (std::fabs(pos) + n.OrderQuantity > maxPos + 1e-9) return -8998;
-    for (auto& o : ord) if (IsWorkingOrderStatus(o.status)) return -8997;         // AllowEntryWithWorkingOrders = 0
+    double wq = 0; for (auto& o : ord) if (o.parent == 0 && IsWorkingOrderStatus(o.status)) { wq += o.qty; if (o.side != side) return -8996; }
+    if (pos != 0 && (pos > 0) != (side > 0)) return -8996;                        // no opposite entry against a position
+    if (std::fabs(pos) + wq + n.OrderQuantity > maxPos + 1e-9) return -8998;
+    if (!allowWorking) for (auto& o : ord) if (IsWorkingOrderStatus(o.status)) return -8997;
     MOrder p{ nextId++, n.OrderType, side, SCT_OSC_OPEN, n.Price1, n.OrderQuantity, 0, 0, 0 };
     MOrder c{ nextId++, SCT_ORDERTYPE_STOP, -side, SCT_OSC_PENDING_CHILD, 0, n.OrderQuantity, n.Stop1Offset, p.id, 0 };
     const bool hasStop = n.Stop1Offset > 0; if (hasStop) p.child = c.id;
@@ -93,12 +99,14 @@ struct s_sc {
   void GetTradePosition(s_SCPositionData& p) { p.PositionQuantity = br.pos; p.AveragePrice = br.avg; p.TotalTrades = br.trades; p.CumulativeProfitLoss = br.cum;
     p.LastTradeProfitLoss = br.last; p.WorkingOrdersExist = 0; for (auto& o : br.ord) if (IsWorkingOrderStatus(o.status)) p.WorkingOrdersExist = 1; }
   int GetOrderByOrderID(uint64_t id, s_SCTradeOrder& o) { MOrder* m = br.get((uint32_t)id); if (!m) return SCTRADING_ORDER_ERROR;
-    o.InternalOrderID = m->id; o.Price1 = m->price; o.OrderStatusCode = m->status; o.OrderQuantity = m->qty; return 1; }
+    o.InternalOrderID = m->id; o.Price1 = m->price; o.OrderStatusCode = m->status; o.OrderQuantity = m->qty; o.AvgFillPrice = m->fill; return 1; }
+  int CancelOrder(uint64_t id) { return IsFullRecalculation ? -8999 : br.cancelOne((uint32_t)id); }
+  int ModifyOrder(s_SCNewOrder& m) { return IsFullRecalculation ? -8999 : br.modify(m.InternalOrderID, m.Price1); }
   int FlattenAndCancelAllOrders() { return IsFullRecalculation ? -8999 : br.flatten(); }
   int CancelAllOrders() { return IsFullRecalculation ? -8999 : br.cancelAll(); }
   double RoundToTickSize(double x) const { return std::floor(x / TickSize + 0.5) * TickSize; }
-  double BuyEntry(s_SCNewOrder& o) { return IsFullRecalculation ? -8999 : br.submit(o, 1, MaximumPositionAllowed); }
-  double SellEntry(s_SCNewOrder& o) { return IsFullRecalculation ? -8999 : br.submit(o, -1, MaximumPositionAllowed); }
+  double BuyEntry(s_SCNewOrder& o) { br.allowWorking = AllowEntryWithWorkingOrders; return IsFullRecalculation ? -8999 : br.submit(o, 1, MaximumPositionAllowed); }
+  double SellEntry(s_SCNewOrder& o) { br.allowWorking = AllowEntryWithWorkingOrders; return IsFullRecalculation ? -8999 : br.submit(o, -1, MaximumPositionAllowed); }
   const char* GetTradingErrorTextMessage(int) const { return "mock rejection"; }
   static SCDateTime ConvNY(const SCDateTime& u) { return SCDateTime(u.d, u.t - (u.d == 46037 ? 5 : 4) * 3600); }
   static SCDateTime ConvUTC(const SCDateTime& u) { return u; }

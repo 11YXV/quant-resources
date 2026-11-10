@@ -17,6 +17,16 @@ From building `NoiseBandMomentum_NQ_MNQ`, `GapOpeningDrive_NQ_MNQ` and `TrendDay
 
 79. **One shared template beats three hand-synchronised files.** The three scripts share one engine driver and one order layer and differ in a 30-line decision function, the inputs and the header. They are generated from `research/gen` (`gen.py`). A fix to the order layer is made once. Each generated `.cpp` is still fully self-contained for the remote build.
 
+80. **Several strategies on one account: follow each leg by its own order IDs, not by the account position.** `MomentumSuite_NQ_MNQ` gives each strategy one entry order with its own attached stop and reads the parent's and the stop's status (`SCT_OSC_FILLED`, working) to know where the leg is. The account position is used for one thing: it must equal the sum of the open legs, or everything is flattened after 5 s. This replaces the "one strategy per account" limit of #72 for strategies inside one study. It needs `AllowEntryWithWorkingOrders = 1`, `AllowMultipleEntriesInSameDirection = 1`, `CancelAllOrdersOnEntries... = 0` and `MaximumPositionAllowed` = the legs added up (#2, #8). Mock only so far.
+
+81. **In a multi-leg study `FlattenAndCancelAllOrders()` and `CancelAllOrders()` hit every leg.** Use `sc.CancelOrder(parentID)` for one leg's resting entry, and for one leg's discretionary exit move that leg's own stop to just behind the market (verify-then-modify) and let it fill. Flatten only when the leg is alone or when everything must go.
+
+82. **Process new entries before discretionary exits in the same call.** With exits first, NBM's "only leg, so flatten" fired on the same 30-minute mark on which TVP wanted to enter, and 39 TVP trades were refused over 7 years ("a flatten is in flight"). With entries first, the new leg is already working, so the exit takes the stop-tightening path and both happen.
+
+83. **An exit that trails "N ticks behind the market on every call" makes the result depend on how often the study is called.** Same fills, 1.5% less net when the mock called the study once a minute instead of on every tick. Expect a Replay result to move with the chart update interval; it is not a bug.
+
+84. **Standing requirement (2026-11-10): every new script must be testable tick by tick in Replay on ONE Trade Account.** Build it as a leg of the suite or with the same own-order tracking.
+
 ## 3. Research record (NQ 1-minute, 2017-01 → 2024-03, $2.50 per round trip)
 
 - **Intraday mean reversion lost in every form tried**: gap fade, VWAP 1.5–2.5σ fade, failed breakout of the prior-day and overnight extremes, Kaufman's midday support/resistance. Also on ES. Do not spend another script on a fade without new evidence.

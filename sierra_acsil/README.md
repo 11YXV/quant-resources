@@ -8,6 +8,8 @@ Built 2026-11-10. Three Sierra Chart ACSIL studies for MNQ, day session only, fl
 | `GapOpeningDrive_NQ_MNQ.cpp` (GOD) | Opening drive | Stop entry beyond the first 5-minute range, on the side of the overnight gap only | Stop 0.10 × average day range; 15:55 |
 | `TrendDayVwapPullback_NQ_MNQ.cpp` (TVP) | Trend-day pullback | After the day has broken a noise band: first 15-minute block that touches VWAP and closes back on the trend side | Stop 0.15 × average day range; 15:55 |
 
+**Use `MomentumSuite_NQ_MNQ.cpp` on a single account.** It runs all three strategies in one study, one leg per strategy, and can be Replay-tested tick by tick on one Trade Account. The three single-strategy files are kept for testing one idea alone; never run them next to the suite or next to each other on the same account. See "Combined study" at the end.
+
 **Status: not yet built or run in your Sierra Chart.** They compile and link with MinGW against the public SDK headers and were run in a mock of Sierra with a simulated broker. The numbers below are from that mock, on data that ends in March 2024. Sierra's Replay is the authority.
 
 ---
@@ -250,3 +252,40 @@ Reddit blocks the search crawler, nothing from 4chan /biz/ was indexed, and this
 - **NBM and TVP carry over to ES**, at about a third of the dollars per contract. That is evidence the two rules are not fitted to NQ alone.
 - **GOD does not carry over.** It loses on ES in 2017–2021 and is flat after. Treat GOD as the least proven of the three: an NQ-specific result with a fill assumption that also matters (see Part F).
 - **Adding MES does not improve the portfolio.** 1 MNQ + 1 MES per script: $588 a month, Sharpe 1.39, drawdown −$4,048, and 2017 and 2019 turn into losses of −$1,912 and −$1,656. 2 MNQ per script: $975 a month, Sharpe 1.68, drawdown −$4,076. If you want more size, add MNQ contracts, not MES.
+
+---
+
+## Combined study for one account (2026-11-10)
+
+`MomentumSuite_NQ_MNQ.cpp` — the three engines in one study, on one chart and one Trade Account.
+
+**How it shares the account**
+
+- Each strategy owns one leg: its own entry order with its own attached stop. Legs are followed by their order IDs, not by the account position.
+- The account position must equal the sum of the open legs. A difference lasting 5 seconds flattens everything.
+- A leg may open only if no other leg is open or working in the opposite direction. In 2017–2024 this never happened (0 of 2,970 signals; `research/single_account_conflicts.py`), so nothing is given up.
+- When NBM's exit rule fires while another leg is open, NBM's stop is moved to 2 ticks behind the market and follows the price until it fills. When NBM is the only leg, everything is flattened.
+- Daily loss halt, profit lock and losing-streak halt use the account's realised P&L since the first call of the day plus the open legs.
+
+**Measured** (the file in the mock, 2017-01 → 2024-03, 1 MNQ per strategy, $2.50 per contract round trip)
+
+| | Suite |
+|---|---|
+| Net profit | $45,815 |
+| Average / median month | $527 / $251 |
+| Best / worst month | $4,507 / −$845 |
+| Profitable months | 59 of 87 |
+| Legs traded | 2,990 (NBM 1,528, GOD 785, TVP 677) |
+| Maximum drawdown | −$2,144 |
+| Worst day | −$657 |
+| 2017–2021 / 2022–2024 per month | $383 / $846 |
+
+**Tests**
+
+- One strategy switched on at a time reproduces each single-strategy file fill for fill (same fills, same P&L).
+- Identical trades with 361 full recalculations injected and with every call doubled.
+- Called once a minute only: same fills, net 1.5% lower, because the tightened stop follows the price only when the study is called. In Sierra this depends on the chart update interval.
+- 0 invariant violations; AddressSanitizer and UBSan clean; MinGW build with 0 warnings.
+- Faults: wrong time zone (no entries), 12 failed flattens (re-issued), a manual position added to the account (flattened after 5 s), daily loss halt, losing-streak halt, $ cap per leg, per-strategy contract sizes.
+
+**Standing rule from here on:** new scripts are built so that they can be Replay-tested tick by tick on one Trade Account — either as an added leg of this suite or as a study that tracks its own orders the same way.
