@@ -215,3 +215,22 @@ Real-time data is required. Set `Allow LIVE orders` = Yes only when Trade Simula
 - `research/` — data build (`build.py`, `cont.py`, `days.py`), candidate tests (`s1.py` … `s10.py`, `s4.py` overnight, `seg.py`), reference models (`ref.py`), portfolio and report (`port.py`, `report.py`), model-vs-mock diff (`diff.py`).
 - `research/gen/` — the template the three files are generated from (`gen.py`). Edit the template, not three copies.
 - `research/mock/` — mock `sierrachart.h`, simulated broker and harness.
+
+---
+
+## Follow-up (2026-11-10): strategies claimed on forums and blogs
+
+Reddit blocks the search crawler, nothing from 4chan /biz/ was indexed, and this session could not open forum pages, so the claims below come from search summaries, TradingView listings, blogs and two public GitHub research logs. No source had a verified live record. Each claim was tested with `research/forum_claims.py` on the same data, costs and split as above (1 MNQ, $2.50 per round trip, IS 2017–2021, OOS 2022–2024-03).
+
+| Claim | Version tested | PF IS | PF OOS | $/month IS / OOS | Verdict |
+|---|---|---|---|---|---|
+| Gap-down rebound, buy the open, exit after 60 min (Quantified Strategies; exact conditions paywalled) | Gap ≥ 0.25 × avg range and prior day down | 1.21 | 0.75 | 17 / −57 | Fails out-of-sample |
+| | Gap ≥ 0.1 and prior close in the low quarter of its range | 1.27 | 1.26 | 15 / 42 | Positive but 138 trades in 7 years; too small to build |
+| 15-min opening range, 5-min close confirmation, midpoint stop, 2R target (TradingView, Trade That Swing) | As described | 0.99 | 1.01 | −7 / 12 | Break-even |
+| | Same, no target | 1.04 | 1.18 | 30 / 270 | Weak in-sample; the gap-side filter in GOD is better |
+| Long only in the first two hours (EliteTrader) | Every day; above 50-day average; prior day up; gap up | 0.93–1.02 | 0.99–1.02 | −46 to 18 | No edge |
+| ATR trend band / Supertrend on 10-min bars (TradingView vendor) | ATR 10, × 3 | 1.12 | 1.08 | 139 / 192 | Weak; drawdown −$3,200; × 2 and × 4 are flat |
+| VWAP reversion in 09:45–11:30 and 13:00–15:00 (prop-firm blog, Reddit post) | 1.5–3 σ, stops 1–2 σ | 0.70–0.95 | 0.79–0.97 | all negative | Loses |
+| ICT Silver Bullet | Not re-tested | — | — | — | Two independent backtests found it lost after costs in every test 2020–2025 |
+
+**Result: none of the forum strategies passed, so no new script was built.** The only forum-popular idea that held up is the noise-band momentum already in this suite.
