@@ -36,7 +36,11 @@ struct MockSubgraph { std::string Name; int DrawStyle = 0; unsigned PrimaryColor
   float& operator[](int i) { if ((int)Data.size() <= i) Data.resize(i + 4096, 0.0f); return Data[i]; } };
 typedef MockSubgraph& SCSubgraphRef;
 struct MockArr { std::vector<float> v; float operator[](int i) const { return v[i]; } };
-struct MockDT { std::vector<int> d, t; int DateAt(int i) const { return d[i]; } int TimeAt(int i) const { return t[i]; } };
+struct MockDT { std::vector<int> d, t; int DateAt(int i) const { return d[i]; } int TimeAt(int i) const { return t[i]; } int GetArraySize() const { return (int)d.size(); } };
+struct SCDateTimeArray { const MockDT* p = nullptr; int DateAt(int i) const { return p->d[i]; } int TimeAt(int i) const { return p->t[i]; } int GetArraySize() const { return p ? (int)p->d.size() : 0; } };
+enum { SC_OPEN = 0, SC_HIGH = 1, SC_LOW = 2, SC_LAST = 3 };
+struct MockFA { const std::vector<float>* v = nullptr; int GetArraySize() const { return v ? (int)v->size() : 0; } float operator[](int i) const { return (*v)[i]; } };
+struct SCGraphData { MockFA a[4]; MockFA& operator[](int i) { return a[i]; } };
 struct MOrder { uint32_t id; int type, side, status; double price, qty, offset; uint32_t parent, child; double fill = 0; };
 struct s_sc;
 struct Broker {
@@ -90,6 +94,9 @@ struct s_sc {
   SCString GraphName, StudyDescription, Symbol{ "MNQZ26" }, SelectedTradeAccount{ "Sim1" };
   MockArr Open, High, Low, Close, Volume; MockDT BaseDateTimeIn; MockSubgraph Subgraph[60]; MockInput Input[128];
   SCDateTime LatestDateTimeForLastBar, CurrentSystemDateTime; void* pp[8] = {}; Broker br; FILE* log = nullptr; long nLog[2] = {0, 0}; int tz = 0; int replay = 1;
+  std::vector<float> rO, rH, rL, rC; MockDT rDT;
+  void GetChartBaseData(int, SCGraphData& g) { g.a[0].v = &rO; g.a[1].v = &rH; g.a[2].v = &rL; g.a[3].v = &rC; }
+  void GetChartDateTimeArray(int, SCDateTimeArray& d) { d.p = &rDT; }
   void*& GetPersistentPointer(int i) { return pp[i]; }
   void AddMessageToLog(const char* m, int lvl) { ++nLog[lvl ? 1 : 0]; if (log) fprintf(log, "%d %02d:%02d:%02d [%d] %s\n", br.date, br.tod / 3600, br.tod / 60 % 60, br.tod % 60, lvl, m); }
   void AddMessageToLog(const SCString& m, int lvl) { AddMessageToLog(m.GetChars(), lvl); }

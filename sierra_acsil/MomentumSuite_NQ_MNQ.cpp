@@ -3,12 +3,13 @@
 SCDLLName("MomentumSuite_NQ_MNQ")
 
 /*============================================================================
-  MomentumSuite_NQ_MNQ  v1  --  three strategies, ONE chart, ONE trade account
+  MomentumSuite_NQ_MNQ  v2  --  six strategies, ONE trade account
   (Lessons #12: the two lines above stay at the very top of the file.)
 
   WHAT IT DOES
-    Runs the three day-session momentum strategies of this suite in a single
-    study, so they can be Replay-tested tick by tick and traded on one account:
+    Runs six day-session strategies in a single study, so they can be
+    Replay-tested tick by tick and traded on one account. Each has its own
+    on/off switch and contract count, so each can also be tested alone:
       NBM  Noise-band momentum: at each 30-minute mark 10:00-15:30, long when
            the close is above the upper noise band and above VWAP (short
            mirrored); exit when a 30-minute close is back through
@@ -19,6 +20,23 @@ SCDLLName("MomentumSuite_NQ_MNQ")
       TVP  Trend-day VWAP pullback: after a 30-minute close beyond a band,
            the first 15-minute block that touches VWAP and closes back on the
            trend side; stop 0.15 x average range; one trade a day.
+      RSL  Relative-strength leader (v2): at 10:00, z = (NQ's move from its
+           open - 1.2 x the reference market's move) / NQ's average move at
+           10:00. z >= 0.45 -> long MNQ, z <= -0.45 -> short; stop 0.15 x
+           average range; one trade a day. NQ leading or lagging the S&P in
+           the first half hour tended to keep doing so into the close.
+      PYR  Pyramid (v2): when an NBM trade is ahead by 0.15 x average range at
+           a later 30-minute mark and the close is still beyond the band, add
+           one contract with its own stop 0.25 x average range; it leaves when
+           the NBM trade ends. One add per NBM trade.
+      ESL  Reference market leads (v2): at a 30-minute mark 10:00-15:00 the
+           reference market has closed beyond ITS OWN noise band while NQ is
+           still inside its band but on that side of VWAP -> enter MNQ that
+           way; stop 0.20 x average range; one trade a day.
+    RSL and ESL read a second chart: MES or ES, 5-minute bars, same time zone,
+    same days loaded, its chart number in the input 'Reference chart'. They
+    decide once the reference bar for the mark is final (its next bar has
+    started). Without that chart those two legs make no signals.
     Noise band = max/min(open, prior close) x (1 +/- average |close/open - 1|
     for that time of day over the last 14 full sessions). All flat at 15:55
     New York. Rules, sources and measurements: README.md and the three
@@ -31,8 +49,9 @@ SCDLLName("MomentumSuite_NQ_MNQ")
     L2  The account position must always equal the sum of the open legs. A
         difference that lasts 5 s of trade time flattens everything.
     L3  A leg may open only if no other leg is open or working in the OPPOSITE
-        direction. Measured 2017-2024: this never happened (0 of 2,970
-        signals), so nothing is given up.
+        direction. Among NBM, GOD, TVP and PYR this never happened in
+        2017-2024. RSL and ESL can disagree with an open leg: about 30 RSL
+        and 75 ESL signals in 7 years were refused for that reason.
     L4  A leg ends on its attached stop, on the engine exit (NBM), or at the
         flat time. The engine exit of one leg while others stay open: that
         leg's stop is moved to 2 ticks behind the market and follows it until
@@ -54,23 +73,31 @@ SCDLLName("MomentumSuite_NQ_MNQ")
 
   MEASURED (this file in the mock: NQ 1-minute data 2017-01 .. 2024-03 as 4
   ticks per bar, 1 MNQ per strategy, $2.50 per contract round trip)
-    2,990 legs | net +$45,815 | $527 per month (median $251) | 59 of 87
-    months positive | best month +$4,507, worst -$845 | max drawdown -$2,144 |
-    worst day -$657 | 2017-2021 $383 per month, 2022-2024 $846 per month.
-    By strategy: NBM 1,528 legs, PF 1.43, +$21,648 | GOD 785, PF 1.49,
-    +$10,740 | TVP 677, PF 1.56, +$13,427. By year: 2017 +124, 2018 +6,442,
-    2019 -233, 2020 +5,548, 2021 +11,106, 2022 +13,957, 2023 +6,370,
-    2024 (to March) +2,502.
-    With one strategy switched on at a time the study reproduces each
-    single-strategy file fill for fill. Identical trades with 361 full
-    recalculations injected and with every call doubled. Called once a
-    minute only, the fills are the same but the net is 1.5% lower: the
-    tightened stop of L4 follows the price only when the study is called.
-    GOD's result depends on the order of ticks inside the entry minute
-    (worst case about $2,900 less over the period) and GOD lost on ES.
+    Six legs: 4,925 legs | net +$76,121 | $875 per month (median $588) | 61 of
+    87 months positive | best month +$8,246, worst -$1,130 | max drawdown
+    -$3,200 | worst day -$884 | 2017-2021 $588 per month, 2022-2024 $1,512.
+    By leg ($ per month, 2017-21 / 2022-24): NBM 256 (195 / 393), PF 1.45 |
+    GOD 123 (94 / 189), PF 1.49 | TVP 154 (101 / 273), PF 1.56 | RSL 154
+    (89 / 297), PF 1.40 | PYR 108 (67 / 198), PF 1.47 | ESL 79 (42 / 162),
+    PF 1.39. By year: 2017 +438, 2018 +8,292, 2019 -166, 2020 +10,257,
+    2021 +16,483, 2022 +26,779, 2023 +10,590, 2024 (to March) +3,447.
+    At $5.00 per round trip: $733 per month.
+    The first three legs alone (v1): $527 per month, max drawdown -$2,144.
+    Each leg switched on alone matches its independent Python model (same
+    entry price on 97-99% of trades). Identical trades with 361 full
+    recalculations injected and with every call doubled; called once a minute
+    only, same fills and 1.5% less net (the tightened stop of L4).
+    WEAKEST PARTS: ESL made little in 2017-2021 ($42 per month); GOD depends
+    on the order of ticks in its entry minute and lost on ES; PYR adds size
+    on the same days NBM wins, so it raises drawdown as well as profit.
+    About 35 ideas were tried to find these six: expect less than measured.
     A mock is not Sierra. Nothing after 2024-03-07 has been tested.
 
   FIRST REPLAY CHECKS (unverified until seen in Sierra)
+    0 Replay with the reference chart: "MSU RSL SIGNAL" lines appear at 10:00
+      and show a plausible reference move; no "MSU REFERENCE CHART" warning.
+      sc.GetChartBaseData / sc.GetChartDateTimeArray during a multi-chart
+      Replay are NOT yet verified here.
     1 "FILL VERIFY ok" for a MARKET parent and for GOD's STOP parent.
     2 Two legs open at once: two working stops, position = 2.
     3 "ENGINE EXIT ... stop -> " lines move one stop only; the other leg's
@@ -81,7 +108,9 @@ SCDLLName("MomentumSuite_NQ_MNQ")
 
   BACKTEST IN SIERRA (tick by tick, one account)
     MNQ continuous contract, 5-minute bars, New York time zone, 25+ days
-    loaded before the start. Trade Simulation Mode ON, commission set (#55).
+    loaded before the start. For RSL / ESL: an MES (or ES) 5-minute chart in
+    the same chartbook, same settings, and replay ALL charts of the chartbook
+    together so both markets advance in step. Trade Simulation Mode ON, commission set (#55).
     Clear trade data (#53, #71). Chart >> Replay Chart, Accurate Trading
     System Back Test mode (#54). No other study may trade this symbol on the
     same Trade Account (#72); do not add the single-strategy studies as well.
@@ -89,7 +118,8 @@ SCDLLName("MomentumSuite_NQ_MNQ")
   STORAGE: Persistent pointer 1 = Engine (heap, rebuilt on a full
     recalculation), pointer 2 = Trader (heap, kept). Freed on the last call.
   INSTALL: ACS_Source\MomentumSuite_NQ_MNQ.cpp, Build Custom Studies DLL,
-    add "Momentum Suite NQ MNQ" to an MNQ 5-minute chart. Keep the Trade
+    REMOVE a v1 study from the chart, add "Momentum Suite NQ MNQ v2" to an MNQ
+    5-minute chart and set 'Reference chart' to the MES chart's number. Keep the Trade
     Window "Attached Orders" list EMPTY. Message Log lines start "MSU".
 ============================================================================*/
 
@@ -98,7 +128,7 @@ SCDLLName("MomentumSuite_NQ_MNQ")
 #include <cstdio>
 #include <cmath>
 
-#define STUDY_VERSION      "v1"
+#define STUDY_VERSION      "v2"
 #define STUDY_BUILD_STAMP  __DATE__ " " __TIME__
 
 namespace msu
@@ -112,8 +142,8 @@ namespace msu
     enum : int { DIR_BOTH = 0, DIR_LONG, DIR_SHORT };
     enum : int { MAXB = 400, MAXLOOK = 30 };
     enum : int { KIND_MARKET = 0, KIND_STOP = 1 };
-    enum : int { S_NBM = 0, S_GOD, S_TVP, NS };
-    static const char* const kStrat[NS] = { "NBM", "GOD", "TVP" };
+    enum : int { S_NBM = 0, S_GOD, S_TVP, S_RSL, S_PYR, S_ESL, NS };
+    static const char* const kStrat[NS] = { "NBM", "GOD", "TVP", "RSL", "PYR", "ESL" };
 
     enum InputIdx : int
     {
@@ -122,20 +152,30 @@ namespace msu
         IN_TVP_ON, IN_TVP_QTY, IN_TVP_BAND, IN_TVP_STOP, IN_TVP_CONFIRM,
         IN_SESS_OPEN, IN_SESS_CLOSE, IN_EOD, IN_DIRECTIONS, IN_LOOKBACK, IN_TALLY_COST, IN_VERBOSE,
         IN_ORDER_MODE, IN_ALLOW_LIVE, IN_MAX_RISK_USD, IN_DAILY_LOSS, IN_PROFIT_LOCK, IN_MAX_CONSEC,
-        IN_SAFETY, IN_INHERITED, IN_ENTRY_DELAY, IN_EARLY_CLOSE
+        IN_SAFETY, IN_INHERITED, IN_ENTRY_DELAY, IN_EARLY_CLOSE,
+        // v2 (appended; an older placed study reads 0 = off / default for these, lessons #15, #64)
+        IN_REF_CHART, IN_RSL_ON, IN_RSL_QTY, IN_RSL_K, IN_RSL_BETA, IN_RSL_STOP,
+        IN_PYR_ON, IN_PYR_QTY, IN_PYR_PROFIT, IN_PYR_STOP, IN_ESL_ON, IN_ESL_QTY, IN_ESL_STOP
     };
 
     enum SubgraphIdx : int
     {
         SG_VWAP = 0, SG_UB, SG_LB, SG_TRIG, SG_CANCEL, SG_TREND,
-        SG_LONG0, SG_LONG1, SG_LONG2, SG_SHORT0, SG_SHORT1, SG_SHORT2, SG_ENGINE_END,
-        SG_STOP0 = SG_ENGINE_END, SG_STOP1, SG_STOP2, NSG
+        SG_LONG0, SG_LONG1, SG_LONG2, SG_LONG3, SG_LONG4, SG_LONG5, SG_SHORT0, SG_SHORT1, SG_SHORT2, SG_SHORT3, SG_SHORT4, SG_SHORT5,
+        SG_ENGINE_END, SG_STOP0 = SG_ENGINE_END, SG_STOP1, SG_STOP2, SG_STOP3, SG_STOP4, SG_STOP5, NSG
     };
 
     struct Params
     {
-        int    On[NS]     = { 1, 1, 1 };
-        int    Qty[NS]    = { 1, 1, 1 };
+        int    On[NS]     = { 1, 1, 1, 1, 1, 1 };
+        int    Qty[NS]    = { 1, 1, 1, 1, 1, 1 };
+        int    RefChart   = 0;                         // chart number of the MES / ES 5-minute chart (0 = none: RSL, ESL idle)
+        double RslK       = 0.45;                      // min |NQ move - beta x ES move|, x the average NQ move at 10:00
+        double RslBeta    = 1.2;
+        double RslStop    = 0.15;                      // x average day range
+        double PyrProfit  = 0.15;                      // NBM trade ahead by this, x average day range
+        double PyrStop    = 0.25;
+        double EslStop    = 0.20;
         double NbmBand    = 1.0;                       // noise band width, x the average move
         double NbmCat     = 0.5;                       // NBM disaster stop, x average day range
         int    NbmMaxTr   = 3;                         // NBM trades per day
@@ -159,7 +199,9 @@ namespace msu
         int    NbmLastEntry() const { return 15 * 3600 + 30 * 60; }
         int    TvpLastEntry() const { return 15 * 3600; }
         int    GodOrSec() const     { return 300; }
-        int    TotalQty() const     { return (On[0] ? Qty[0] : 0) + (On[1] ? Qty[1] : 0) + (On[2] ? Qty[2] : 0); }
+        int    RslTime() const      { return 10 * 3600; }
+        int    EslLastEntry() const { return 15 * 3600; }
+        int    TotalQty() const     { int n = 0; for (int q = 0; q < NS; ++q) if (On[q]) n += Qty[q]; return n; }
     };
 
     // ------------------------------------------------------------------ dates
@@ -228,6 +270,15 @@ namespace msu
 
     struct Sess { float rng; float mv[MAXB]; };
 
+    // The reference market's day session (MES / ES chart): open, prior close and its own noise profile.
+    struct RefSess
+    {
+        int    cursor, curDate, barsSeen, lastB, lastTod, halt, ringN, ringHead, ok;
+        double dOpen, dHigh, dLow, dClose, prevClose;
+        float  mv[MAXB], sig[MAXB];
+        Sess   ring[MAXLOOK];
+    };
+
     struct Engine
     {
         int    lastCommitted, recalcOpen, bannerDone, tallyLogged, tickWarned, quiet, virtualLog;
@@ -237,11 +288,15 @@ namespace msu
         Sess   ring[MAXLOOK];
         int    ringN, ringHead;
         Strat  s[NS];
+        RefSess es;
+        int     pyrFor, refPendBar, refMiss;
+        int64_t refPendKey;
         void ResetAll()
         {
             std::memset(this, 0, sizeof(*this));
             lastCommitted = -1;
             for (int q = 0; q < NS; ++q) s[q].sigBar = -1;
+            refPendBar = -1;
         }
     };
 
@@ -421,6 +476,131 @@ namespace msu
         Emit(f, E, P, S_TVP, k, d, KIND_MARKET, 0.0, P.TvpStop * E.adr, 0.0, 0, "trend day, pullback to VWAP rejected");
     }
 
+    // PYR: one add-on contract to an NBM trade that is ahead and still beyond its band at a later 30-minute mark.
+    // It leaves with the NBM trade (or on its own stop).
+    template <class F> static void DecidePYR(F& f, Engine& E, const Params& P, int k, int tod, int bsec)
+    {
+        Strat& S = E.s[S_PYR];
+        const VTrade& n = E.s[S_NBM].vt;
+        VTrade& v = S.vt;
+        const bool nbmOn = n.state == VS_OPEN && !n.exitNext;
+        if (v.state != VS_FLAT && !nbmOn)                               // the NBM trade is over: leave with it
+        {
+            if (v.state == VS_OPEN) v.exitNext = 1; else v.state = VS_FLAT;
+            S.exitKey = (int64_t)f.Date(k) * 86400 + tod; S.exitLong = S.exitShort = 1;
+            return;
+        }
+        const int endT = tod + bsec;
+        if (v.state != VS_FLAT || !nbmOn || E.pyrFor == n.seq) return;
+        if ((endT - P.SessOpen) % 1800 != 0 || endT > P.NbmLastEntry()) return;
+        const int    b  = (tod - P.SessOpen) / bsec;
+        const double c  = f.C(k);
+        const double ub = DMax(E.dOpen, E.prevClose) * (1.0 + P.NbmBand * E.sig[b]);
+        const double lb = DMin(E.dOpen, E.prevClose) * (1.0 - P.NbmBand * E.sig[b]);
+        if (!(n.dir * (c - n.px) >= P.PyrProfit * E.adr) || !(n.dir > 0 ? c > ub : c < lb) || !DirOn(P, n.dir)) return;
+        E.pyrFor = n.seq;
+        S.exitLong = S.exitShort = 0;
+        Emit(f, E, P, S_PYR, k, n.dir, KIND_MARKET, 0.0, P.PyrStop * E.adr, 0.0, 0, "NBM trade ahead and still beyond the band: add one");
+    }
+
+    // Feed the reference chart's FINAL bars (a later bar exists) up to and including time key 'upTo'.
+    template <class F> static void FeedRef(F& f, Engine& E, const Params& P, int64_t upTo)
+    {
+        RefSess& R = E.es;
+        const int n = f.RefSize(), bsec = f.BarSec() > 0 ? f.BarSec() : 300;
+        while (R.cursor < n - 1)
+        {
+            const int j = R.cursor, date = f.RefDate(j), tod = f.RefTod(j);
+            if ((int64_t)date * 86400 + tod > upTo) break;
+            ++R.cursor;
+            if (tod < P.SessOpen || tod >= P.SessClose) continue;
+            const int nb = IMin((P.SessClose - P.SessOpen) / bsec, MAXB);
+            if (date != R.curDate)
+            {
+                if (R.curDate != 0)
+                {
+                    if (R.barsSeen >= nb - 2 && !R.halt && R.dOpen > 0.0)
+                    {
+                        for (int b = R.lastB + 1; b < nb; ++b) R.mv[b] = R.mv[R.lastB];
+                        Sess& s = R.ring[R.ringHead];
+                        s.rng = (float)(R.dHigh - R.dLow);
+                        std::memcpy(s.mv, R.mv, sizeof s.mv);
+                        R.ringHead = (R.ringHead + 1) % MAXLOOK;
+                        if (R.ringN < MAXLOOK) ++R.ringN;
+                    }
+                    R.prevClose = R.barsSeen * 100 >= nb * 35 ? R.dClose : 0.0;
+                }
+                R.curDate = date; R.halt = ExchangeHaltTod(date); R.barsSeen = 0; R.lastB = -1;
+                R.dOpen = f.RefO(j); R.dHigh = f.RefH(j); R.dLow = f.RefL(j);
+                std::memset(R.mv, 0, sizeof R.mv);
+                R.ok = 0;
+                if (R.ringN >= P.Lookback)
+                {
+                    for (int b = 0; b < nb; ++b) R.sig[b] = 0.0f;
+                    for (int q = 1; q <= P.Lookback; ++q)
+                    {
+                        const Sess& s = R.ring[(R.ringHead - q + 2 * MAXLOOK) % MAXLOOK];
+                        for (int b = 0; b < nb; ++b) R.sig[b] += s.mv[b];
+                    }
+                    for (int b = 0; b < nb; ++b) R.sig[b] /= (float)P.Lookback;
+                    R.ok = (R.prevClose > 0.0 && !R.halt && R.dOpen > 0.0) ? 1 : 0;
+                }
+            }
+            const int b = (tod - P.SessOpen) / bsec;
+            if (b < 0 || b >= nb) continue;
+            if (R.lastB >= 0) for (int q = R.lastB + 1; q < b; ++q) R.mv[q] = R.mv[R.lastB];
+            R.dHigh = DMax(R.dHigh, f.RefH(j)); R.dLow = DMin(R.dLow, f.RefL(j)); R.dClose = f.RefC(j);
+            R.mv[b] = (float)DAbs(f.RefC(j) / R.dOpen - 1.0);
+            R.lastB = b; R.lastTod = tod; ++R.barsSeen;
+        }
+    }
+
+    // RSL and ESL decide on the reference market's bar for the same time, once that bar is final.
+    // Called on every study call until the pending decision is made or its next bar has closed.
+    template <class F> static void RefDecide(F& f, Engine& E, const Params& P, int lastClosed)
+    {
+        if (E.refPendBar < 0) return;
+        const int k = E.refPendBar, tod = f.Tod(k), date = f.Date(k);
+        const int bsec = f.BarSec() > 0 ? f.BarSec() : 300;
+        RefSess& R = E.es;
+        FeedRef(f, E, P, E.refPendKey);
+        const bool have = R.curDate == date && R.lastTod == tod && R.cursor > 0 &&
+                          (int64_t)f.RefDate(R.cursor - 1) * 86400 + f.RefTod(R.cursor - 1) == E.refPendKey;
+        if (!have)
+        {
+            if (lastClosed > k) { E.refPendBar = -1; ++E.refMiss; }     // its bar never came: no decision for this mark
+            return;
+        }
+        E.refPendBar = -1;
+        const int    b    = (tod - P.SessOpen) / bsec, endT = tod + bsec;
+        const double c    = f.C(k);
+        const bool   sync = R.dOpen > 0.0 && R.barsSeen == E.barsSeen;   // both markets have every bar of the session so far
+        if (!E.dayOK || !sync) return;
+        // RSL: at 10:00, NQ's move from its open against beta x the reference market's move
+        if (endT == P.RslTime() && E.s[S_RSL].vt.state == VS_FLAT && E.s[S_RSL].tradesToday == 0 && E.sig[b] > 0.0f)
+        {
+            const double z = ((c / E.dOpen - 1.0) - P.RslBeta * (R.dClose / R.dOpen - 1.0)) / E.sig[b];
+            const int    d = z >= P.RslK ? 1 : (z <= -P.RslK ? -1 : 0);
+            if (d != 0 && DirOn(P, d))
+            {
+                char what[140];
+                std::snprintf(what, sizeof what, "relative strength %+.2f (NQ %+.3f%%, reference %+.3f%% x %.1f)", z,
+                              100.0 * (c / E.dOpen - 1.0), 100.0 * (R.dClose / R.dOpen - 1.0), P.RslBeta);
+                Emit(f, E, P, S_RSL, k, d, KIND_MARKET, 0.0, P.RslStop * E.adr, 0.0, 0, what);
+            }
+        }
+        // ESL: the reference market has closed beyond ITS noise band, NQ is still inside its own but on the right side of VWAP
+        if (R.ok && endT >= P.FirstMark() && endT <= P.EslLastEntry() && E.s[S_ESL].vt.state == VS_FLAT && E.s[S_ESL].tradesToday == 0)
+        {
+            const double eu = DMax(R.dOpen, R.prevClose) * (1.0 + R.sig[b]), el = DMin(R.dOpen, R.prevClose) * (1.0 - R.sig[b]);
+            const double ub = DMax(E.dOpen, E.prevClose) * (1.0 + P.NbmBand * E.sig[b]);
+            const double lb = DMin(E.dOpen, E.prevClose) * (1.0 - P.NbmBand * E.sig[b]);
+            const int d = (R.dClose > eu && c <= ub && c > E.vwap) ? 1 : ((R.dClose < el && c >= lb && c < E.vwap) ? -1 : 0);
+            if (d != 0 && DirOn(P, d))
+                Emit(f, E, P, S_ESL, k, d, KIND_MARKET, 0.0, P.EslStop * E.adr, 0.0, 0, "reference market beyond its band, NQ not yet");
+        }
+    }
+
     // ------------------------------------------------------------ bar driver
     template <class F> static void ProcessBar(F& f, Engine& E, const Params& P, int k)
     {
@@ -452,7 +632,7 @@ namespace msu
                 }
                 E.prevClose = E.barsSeen * 100 >= E.nb * 35 ? E.dClose : 0.0;
             }
-            E.curDate = date; ++E.sessions;
+            E.curDate = date; ++E.sessions; E.pyrFor = 0;
             E.nb = IMin((P.SessClose - P.SessOpen) / bsec, MAXB);
             E.halt = ExchangeHaltTod(date);
             E.barsSeen = 0; E.lastB = -1;
@@ -503,7 +683,13 @@ namespace msu
             DecideNBM(f, E, P, k, tod, bsec);
             DecideGOD(f, E, P, k, tod, bsec);
             DecideTVP(f, E, P, k, tod, bsec);
+            DecidePYR(f, E, P, k, tod, bsec);
+            if (P.RefChart > 0 && (tod + bsec - P.SessOpen) % 1800 == 0 && tod + bsec >= P.FirstMark())
+            {
+                E.refPendBar = k; E.refPendKey = (int64_t)date * 86400 + tod;   // RSL / ESL: decided by RefDecide()
+            }
         }
+        if (P.RefChart > 0) FeedRef(f, E, P, (int64_t)date * 86400 + tod - 1);   // keep the reference session current
     }
 }   // namespace msu
 
@@ -513,6 +699,7 @@ namespace msu
     struct ScFeed
     {
         SCStudyInterfaceRef sc;
+        explicit ScFeed(SCStudyInterfaceRef s) : sc(s) {}
         double O(int k) const { return sc.Open[k]; }
         double H(int k) const { return sc.High[k]; }
         double L(int k) const { return sc.Low[k]; }
@@ -524,6 +711,25 @@ namespace msu
         double Tick() const      { return sc.TickSize; }
         float& Out(int g, int k) { return sc.Subgraph[g][k]; }
         void   Log(const char* m, int level) { sc.AddMessageToLog(m, level); }
+        // the reference chart (MES / ES), fetched once per study call
+        SCGraphData     ref;
+        SCDateTimeArray refDT;
+        int             refN = 0;
+        void   LoadRef(int chart)
+        {
+            refN = 0;
+            if (chart <= 0 || chart == sc.ChartNumber) return;
+            sc.GetChartBaseData(chart, ref);
+            sc.GetChartDateTimeArray(chart, refDT);
+            refN = IMin(ref[SC_LAST].GetArraySize(), refDT.GetArraySize());
+        }
+        int    RefSize() const     { return refN; }
+        int    RefDate(int j)      { return refDT.DateAt(j); }
+        int    RefTod(int j)       { return refDT.TimeAt(j); }
+        double RefO(int j)         { return ref[SC_OPEN][j]; }
+        double RefH(int j)         { return ref[SC_HIGH][j]; }
+        double RefL(int j)         { return ref[SC_LOW][j]; }
+        double RefC(int j)         { return ref[SC_LAST][j]; }
     };
 
     struct OParams
@@ -587,6 +793,22 @@ namespace msu
         P.Lookback   = R.GI(IN_LOOKBACK, 3, MAXLOOK, D.Lookback);
         P.TallyCost  = R.GF(IN_TALLY_COST, 0.0, 50.0, D.TallyCost);
         P.Verbose    = sc.Input[IN_VERBOSE].GetYesNo() ? 1 : 0;
+        // v2 inputs: on a study placed before v2 they read 0 -> the three new legs stay off and the numbers take their defaults
+        P.RefChart   = R.GI(IN_REF_CHART, 0, 5000, 0);
+        P.On[S_RSL]  = sc.Input[IN_RSL_ON].GetYesNo() ? 1 : 0;
+        P.On[S_PYR]  = sc.Input[IN_PYR_ON].GetYesNo() ? 1 : 0;
+        P.On[S_ESL]  = sc.Input[IN_ESL_ON].GetYesNo() ? 1 : 0;
+        auto Q0 = [&](int idx, int def) { const int v = sc.Input[idx].GetInt(); return v == 0 ? def : R.GI(idx, 1, 100, def); };
+        auto F0 = [&](int idx, double lo, double hi, double def) { const double v = (double)sc.Input[idx].GetFloat(); return v == 0.0 ? def : R.GF(idx, lo, hi, def); };
+        P.Qty[S_RSL] = Q0(IN_RSL_QTY, D.Qty[S_RSL]);
+        P.Qty[S_PYR] = Q0(IN_PYR_QTY, D.Qty[S_PYR]);
+        P.Qty[S_ESL] = Q0(IN_ESL_QTY, D.Qty[S_ESL]);
+        P.RslK       = F0(IN_RSL_K, 0.05, 10.0, D.RslK);
+        P.RslBeta    = F0(IN_RSL_BETA, 0.2, 5.0, D.RslBeta);
+        P.RslStop    = F0(IN_RSL_STOP, 0.01, 5.0, D.RslStop);
+        P.PyrProfit  = F0(IN_PYR_PROFIT, 0.01, 5.0, D.PyrProfit);
+        P.PyrStop    = F0(IN_PYR_STOP, 0.01, 5.0, D.PyrStop);
+        P.EslStop    = F0(IN_ESL_STOP, 0.01, 5.0, D.EslStop);
         return P;
     }
 
@@ -628,7 +850,7 @@ namespace msu
     };
     static const char* const kFlatWhy[FW_COUNT] =
     {
-        "-", "flat time", "engine exit, the only leg", "a leg's stop is not working (#14)", "attached stop on the wrong side of the fill",
+        "-", "flat time", "engine exit, no other leg staying", "a leg's stop is not working (#14)", "attached stop on the wrong side of the fill",
         "account position differs from the open legs", "flatten re-issued", "untracked position outside trading hours",
         "daily loss limit reached", "a leg's stop could not be tightened for its engine exit"
     };
@@ -654,7 +876,7 @@ namespace msu
         int64_t flattenAbs, mismatchAbs, staleCancelAbs;
         double  flattenPx;
         int     postRecalc, flatSeen, inheritedWarned, liveBlockWarned, bannerDone, recalcLogged;
-        int     cfgDone, cfgFail, tzState, feedWarnDay, clockWarned;
+        int     cfgDone, cfgFail, tzState, feedWarnDay, clockWarned, refWarned;
         char    cfgWhy[240];
         // trading day (reset only when the trading day changes, #43)
         int     lastDay, legsToday, winsToday, lossesToday, consecLosses, sigToday, sigTradedToday, haltLogged, baseTrades;
@@ -919,10 +1141,16 @@ namespace msu
                                                   : (!sim ? " | *** LIVE ORDERS ENABLED ***" : "")));
             sc.AddMessageToLog(msg, (off || liveBlocked || !sim) ? 1 : 0);
             HHMM(hm, sizeof hm, P.EOD);
-            std::snprintf(msg, sizeof msg, "MSU plan: NBM %s x%d | GOD %s x%d | TVP %s x%d | MaximumPositionAllowed %d | one account, one leg "
+            char legs[160]; legs[0] = 0;
+            for (int s = 0; s < NS; ++s)
+            {
+                const size_t n = std::strlen(legs);
+                std::snprintf(legs + n, sizeof legs - n, "%s%s %s x%d", n ? " | " : "", kStrat[s], P.On[s] ? "ON" : "off", P.Qty[s]);
+            }
+            std::snprintf(msg, sizeof msg, "MSU plan: %s | reference chart #%d | MaximumPositionAllowed %d | one account, one leg "
                           "per strategy, each with its own attached stop | max $ risk per leg %s | daily loss halt %s | daily profit lock "
                           "%s | max losing legs in a row %s | flat time %s | %s $/pt %.2f%s",
-                          P.On[0] ? "ON" : "off", P.Qty[0], P.On[1] ? "ON" : "off", P.Qty[1], P.On[2] ? "ON" : "off", P.Qty[2], P.TotalQty(),
+                          legs, P.RefChart, P.TotalQty(),
                           O.MaxRiskUSD > 0.0 ? "ON" : "OFF", O.DailyLoss > 0.0 ? "ON" : "OFF", O.ProfitLock > 0.0 ? "ON" : "OFF",
                           O.MaxConsec > 0 ? "ON" : "OFF", hm, sc.Symbol.GetChars(), usdPerPt,
                           usdPerPt > 0.0 ? "" : " *** $/pt UNKNOWN: no entries ***");
@@ -990,6 +1218,14 @@ namespace msu
                                      O.EntryDelay < 0 || O.EarlyClose != 0) ? 1 : 0);
         }
         const bool cfgBlock = O.Safety == 0 && T.cfgFail != 0;
+        if ((P.On[S_RSL] || P.On[S_ESL]) && !T.refWarned && (P.RefChart <= 0 || E.es.cursor == 0))
+        {
+            T.refWarned = 1;
+            std::snprintf(msg, sizeof msg, "MSU REFERENCE CHART: RSL / ESL need an MES or ES 5-minute chart in this chartbook (same time zone, "
+                          "same days loaded) and its chart number in the input 'Reference chart'. Input = %d, reference bars read = %d -> "
+                          "those two legs make no signals until this is fixed.", P.RefChart, E.es.cursor);
+            sc.AddMessageToLog(msg, 1);
+        }
 
         // ---- first live call after a recalculation: the engine's signal numbers restarted; legs keep their order IDs
         if (T.postRecalc)
@@ -1208,23 +1444,24 @@ namespace msu
 
         // ---- engine exits, after the entries: a leg opened in this call keeps another leg's exit from flattening it
         if (!T.flattenPending && !acted)
-            for (int s = 0; s < NS && !acted; ++s)
+        {
+            int staying = 0, leaving = 0;
+            for (int s = 0; s < NS; ++s)                                  // pass 1: which legs does the engine want out?
             {
                 Leg& g = T.leg[s];
                 const Strat& S = E.s[s];
-                if (g.state != LG_OPEN) continue;
-                // the engine's exit decision, taken on a bar that closed after the fill, handled once
-                if (!g.exiting && engOK && S.exitKey != T.exitKeyDone[s] && S.exitKey + bsec > g.fillAbs)
+                if (g.state == LG_OPEN && !g.exiting && engOK && S.exitKey != T.exitKeyDone[s] && S.exitKey + bsec > g.fillAbs)
                 {
-                    T.exitKeyDone[s] = S.exitKey;
+                    T.exitKeyDone[s] = S.exitKey;                         // decided on a bar that closed after the fill, handled once
                     if ((g.dir > 0 && S.exitLong) || (g.dir < 0 && S.exitShort)) g.exiting = 1;
                 }
-                if (!g.exiting) continue;
-                bool others = false;
-                for (int q = 0; q < NS; ++q) if (q != s && T.leg[q].state != LG_FLAT) others = true;
-                if (!others) { Flatten(FW_ENGINE); break; }
-                if (TightenStop(s) < 0) { Flatten(FW_STOP_MOVE); break; }
+                if (g.state == LG_OPEN && g.exiting) ++leaving; else if (g.state != LG_FLAT) ++staying;
             }
+            if (leaving > 0 && staying == 0) Flatten(FW_ENGINE);          // nothing else to protect: one flatten
+            else if (leaving > 0)
+                for (int s = 0; s < NS && !acted; ++s)                    // pass 2: tighten the leaving legs' own stops
+                    if (T.leg[s].state == LG_OPEN && T.leg[s].exiting && TightenStop(s) < 0) Flatten(FW_STOP_MOVE);
+        }
     }
 }   // namespace msu
 
@@ -1235,8 +1472,8 @@ SCSFExport scsf_MomentumSuite_NQ_MNQ(SCStudyInterfaceRef sc)
     if (sc.SetDefaults)
     {
         sc.GraphName        = "Momentum Suite NQ MNQ " STUDY_VERSION;
-        sc.StudyDescription = "Three MNQ day-session momentum strategies in one study on one trade account: noise-band momentum (NBM), "
-                              "gap opening drive (GOD) and trend-day VWAP pullback (TVP). One leg per strategy, each with its own "
+        sc.StudyDescription = "Six MNQ day-session strategies in one study on one trade account: noise-band momentum (NBM), relative strength vs MES (RSL), "
+                              "gap opening drive (GOD), VWAP pullback (TVP), pyramid add-on (PYR), reference market leads (ESL). One leg each, with its own "
                               "attached stop; all flat at 15:55 New York. MNQ 5-minute chart, New York time. Replay-testable tick by tick.";
         sc.AutoLoop         = 1;
         sc.GraphRegion      = 0;
@@ -1263,6 +1500,15 @@ SCSFExport scsf_MomentumSuite_NQ_MNQ(SCStudyInterfaceRef sc)
         Style(SG_STOP0,  "Order: NBM leg stop",                      DRAWSTYLE_DASH,       RGB(248, 81, 73),   2);
         Style(SG_STOP1,  "Order: GOD leg stop",                      DRAWSTYLE_DASH,       RGB(150, 70, 180),  2);
         Style(SG_STOP2,  "Order: TVP leg stop",                      DRAWSTYLE_DASH,       RGB(255, 150, 0),   2);
+        Style(SG_LONG3,  "RSL long signal",                          DRAWSTYLE_ARROW_UP,   RGB(0, 200, 200),   3);
+        Style(SG_LONG4,  "PYR long add",                             DRAWSTYLE_ARROW_UP,   RGB(120, 220, 120), 2);
+        Style(SG_LONG5,  "ESL long signal",                          DRAWSTYLE_ARROW_UP,   RGB(180, 180, 255), 3);
+        Style(SG_SHORT3, "RSL short signal",                         DRAWSTYLE_ARROW_DOWN, RGB(200, 0, 200),   3);
+        Style(SG_SHORT4, "PYR short add",                            DRAWSTYLE_ARROW_DOWN, RGB(255, 140, 140), 2);
+        Style(SG_SHORT5, "ESL short signal",                         DRAWSTYLE_ARROW_DOWN, RGB(255, 200, 120), 3);
+        Style(SG_STOP3,  "Order: RSL leg stop",                      DRAWSTYLE_DASH,       RGB(200, 0, 200),   2);
+        Style(SG_STOP4,  "Order: PYR leg stop",                      DRAWSTYLE_DASH,       RGB(255, 140, 140), 2);
+        Style(SG_STOP5,  "Order: ESL leg stop",                      DRAWSTYLE_DASH,       RGB(255, 200, 120), 2);
         sc.MaintainTradeStatisticsAndTradesData = 1;
 
         const Params D;
@@ -1317,6 +1563,19 @@ SCSFExport scsf_MomentumSuite_NQ_MNQ(SCStudyInterfaceRef sc)
         DefIN(IN_ENTRY_DELAY, "Max entry delay after the signal bar closes, seconds (0 = 120 default, -1 = off)", 0, -1, 3600);
         DefCX(IN_EARLY_CLOSE, "CME holiday halts / early closes (13:00 / 13:15 New York)",
               "No entries; flatten before the halt (recommended);Ignore", DO.EarlyClose);
+        DefIN(IN_REF_CHART,   "Reference chart number: MES or ES, 5-minute, same time zone (0 = none; needed by RSL and ESL)", D.RefChart, 0, 5000);
+        DefYN(IN_RSL_ON,      "RSL relative-strength leader (NQ vs reference at 10:00): trade it", D.On[S_RSL]);
+        DefIN(IN_RSL_QTY,     "RSL contracts", D.Qty[S_RSL], 0, 100);
+        DefFL(IN_RSL_K,       "RSL min relative strength, x the average NQ move at 10:00 (measured 0.45)", D.RslK, 0.0, 10.0);
+        DefFL(IN_RSL_BETA,    "RSL reference-market multiplier (measured 1.2)", D.RslBeta, 0.0, 5.0);
+        DefFL(IN_RSL_STOP,    "RSL attached stop, x average day range (measured 0.15)", D.RslStop, 0.0, 5.0);
+        DefYN(IN_PYR_ON,      "PYR add-on to a winning NBM trade: trade it", D.On[S_PYR]);
+        DefIN(IN_PYR_QTY,     "PYR contracts", D.Qty[S_PYR], 0, 100);
+        DefFL(IN_PYR_PROFIT,  "PYR needs the NBM trade ahead by, x average day range (measured 0.15)", D.PyrProfit, 0.0, 5.0);
+        DefFL(IN_PYR_STOP,    "PYR attached stop, x average day range (measured 0.25)", D.PyrStop, 0.0, 5.0);
+        DefYN(IN_ESL_ON,      "ESL reference market leads (its band broken, NQ's not yet): trade it", D.On[S_ESL]);
+        DefIN(IN_ESL_QTY,     "ESL contracts", D.Qty[S_ESL], 0, 100);
+        DefFL(IN_ESL_STOP,    "ESL attached stop, x average day range (measured 0.20)", D.EslStop, 0.0, 5.0);
         return;
     }
 
@@ -1380,7 +1639,8 @@ SCSFExport scsf_MomentumSuite_NQ_MNQ(SCStudyInterfaceRef sc)
     E.usdPerPt   = sc.CurrencyValuePerTick > 0.0f ? (double)sc.CurrencyValuePerTick / sc.TickSize : 0.0;
     E.virtualLog = O.OrderMode != 0 ? 1 : 0;
 
-    ScFeed f{ sc };
+    ScFeed f(sc);
+    f.LoadRef(P.RefChart);
     // Commit every closed bar exactly once, in order (lessons #26/#27).
     const int lastClosed = sc.GetBarHasClosedStatus(i) == BHCS_BAR_HAS_CLOSED ? i : i - 1;
     if (lastClosed > E.lastCommitted)
@@ -1388,10 +1648,14 @@ SCSFExport scsf_MomentumSuite_NQ_MNQ(SCStudyInterfaceRef sc)
         {
             E.quiet = (sc.IsFullRecalculation || k < sc.ArraySize - 2) ? 1 : 0;   // lessons #63: per bar, not per call
             ProcessBar(f, E, P, k);
+            RefDecide(f, E, P, k);                              // RSL / ESL for bar k, if its reference bar is already final
             E.lastCommitted = k;
         }
     if (lastClosed < i)                                     // the forming bar: carry the lines, no decisions
         for (int g = 0; g <= SG_CANCEL; ++g) sc.Subgraph[g][i] = i > 0 ? sc.Subgraph[g][i - 1] : 0.0f;
+
+    E.quiet = (sc.IsFullRecalculation || E.refPendBar < sc.ArraySize - 2) ? 1 : 0;
+    RefDecide(f, E, P, lastClosed);                         // RSL / ESL, once the reference bar for the mark is final
 
     if (!E.tallyLogged && E.lastCommitted >= sc.ArraySize - 2) { E.tallyLogged = 1; LogTally(f, E, P); }
     if (!sc.IsFullRecalculation || i == sc.ArraySize - 1) E.recalcOpen = 0;

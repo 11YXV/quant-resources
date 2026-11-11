@@ -289,3 +289,68 @@ Reddit blocks the search crawler, nothing from 4chan /biz/ was indexed, and this
 - Faults: wrong time zone (no entries), 12 failed flattens (re-issued), a manual position added to the account (flattened after 5 s), daily loss halt, losing-streak halt, $ cap per leg, per-strategy contract sizes.
 
 **Standing rule from here on:** new scripts are built so that they can be Replay-tested tick by tick on one Trade Account — either as an added leg of this suite or as a study that tracks its own orders the same way.
+
+---
+
+## Three more strategies (2026-11-11) — added to the suite as legs RSL, PYR, ESL
+
+`MomentumSuite_NQ_MNQ.cpp` is now v2 with six legs. The three new ones are built as legs of the suite, not as separate files, because a separate study on the same account would trip the suite's position check. Each leg has its own on/off switch, so each can be Replay-tested alone on one account.
+
+**What was tested first** (`research/batch2_candidates.py`, `research/batch2_relative_strength.py`; same data, costs and split as before)
+
+| Idea | PF 2017–21 | PF 2022–24 | Verdict |
+|---|---|---|---|
+| **Relative strength, NQ vs ES at 10:00, hold to close (RSL)** | 1.31 | 1.59 | **Built.** Positive in all 17 settings tried, long and short, against ES and against YM |
+| **Pyramid: add to an NBM trade that is ahead (PYR)** | 1.37 | 1.62 | **Built.** 5 of 6 settings positive in both periods |
+| **ES leads: ES beyond its band, NQ not yet (ESL)** | 1.19 | 1.62 | **Built, weakest.** 10 of 12 settings positive in 2017–21; correlation with the rest only 0.12 |
+| Band retest after a breakout | 1.05–1.46 | 0.96–1.20 | Rejected: depends on one setting |
+| Lunch-range breakout (11:30–13:30), four filters | 0.86–1.08 | 1.06–1.95 | Rejected: nothing in 2017–21 |
+| Relative strength entered at 11:30, 12:30, 13:00, 14:00 | 0.79–1.30 | 0.96–1.47 | Rejected: only the 10:00 entry holds |
+| NBM filtered by ES confirmation | 1.36 vs 1.53 | 1.48 vs 1.27 | No consistent gain; not used |
+
+**The three new rules**
+
+- **RSL** — at 10:00, z = (NQ's move from its open − 1.2 × ES's move from its open) ÷ NQ's average move at 10:00. z ≥ 0.45 → long MNQ; z ≤ −0.45 → short. Stop 0.15 × average day range. One trade a day, flat 15:55.
+- **PYR** — when an NBM trade is ahead by 0.15 × average day range at a later 30-minute mark and the close is still beyond the band, add one contract with its own stop (0.25 × range). It leaves when the NBM trade ends.
+- **ESL** — at a 30-minute mark 10:00–15:00, ES has closed beyond its own noise band while NQ is still inside its band but on that side of VWAP → enter MNQ that way. Stop 0.20 × range. One trade a day.
+
+RSL and ESL need a second chart: MES or ES, 5-minute, same time zone and days loaded, with its chart number in the input `Reference chart`. Replay must run all charts of the chartbook together.
+
+**Measured** (the v2 file in the mock, 2017-01 → 2024-03, 1 MNQ per leg, $2.50 per contract round trip)
+
+| | Six legs | First three (v1) |
+|---|---|---|
+| Net profit | $76,121 | $45,815 |
+| Average / median month | $875 / $588 | $527 / $251 |
+| Best / worst month | $8,246 / −$1,130 | $4,507 / −$845 |
+| Profitable months | 61 of 87 | 59 of 87 |
+| Maximum drawdown | −$3,200 | −$2,144 |
+| Worst day | −$884 | −$657 |
+| 2017–2021 / 2022–2024 per month | $588 / $1,512 | $383 / $846 |
+| At $5.00 per round trip | $733 a month | $431 |
+
+| Leg | Legs | Win % | PF | $/month | 2017–21 | 2022–24 |
+|---|---|---|---|---|---|---|
+| NBM | 1,528 | 40.4 | 1.45 | 256 | 195 | 393 |
+| GOD | 785 | 18.1 | 1.49 | 123 | 94 | 189 |
+| TVP | 677 | 28.8 | 1.56 | 154 | 101 | 273 |
+| RSL | 897 | 25.3 | 1.40 | 154 | 89 | 297 |
+| PYR | 580 | 45.9 | 1.47 | 108 | 67 | 198 |
+| ESL | 458 | 38.4 | 1.39 | 79 | 42 | 162 |
+
+By year, six legs: 2017 +$438 · 2018 +$8,292 · 2019 −$166 · 2020 +$10,257 · 2021 +$16,483 · 2022 +$26,779 · 2023 +$10,590 · 2024 (to March) +$3,447. Monte Carlo, one year: 1.1% of years lose; drawdown median −$2,161, 99th percentile −$5,122.
+
+**Tests**
+
+- With the three new legs off, v2 reproduces v1 exactly (5,748 fills, same P&L).
+- Each new leg alone matches its Python model: same day, side and entry price on 923 of 928 (RSL), 575 of 586 (PYR), 512 of 526 (ESL) trades.
+- Identical trades with 361 recalculations injected and with every call doubled; once-a-minute calls give the same fills and 1.5% less net.
+- 0 invariant violations, sanitizers clean, MinGW build with 0 warnings. Without a reference chart the study logs one warning and RSL / ESL stay idle.
+
+**Read this before sizing**
+
+- About 35 ideas have now been tried to find six. The more that are tried, the more the survivors flatter themselves; expect less than measured.
+- The six are not independent: all but ESL are long volatility. 2017 and 2019 are still flat.
+- ESL is the least proven (little in 2017–21). GOD still has its fill-order and ES caveats. PYR adds size on NBM's good days, so it raises drawdown along with profit.
+- About 105 RSL / ESL signals in 7 years were refused because they were opposite to an open leg.
+- Reading the reference chart during a multi-chart Replay is not yet verified in Sierra.

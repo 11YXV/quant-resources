@@ -27,6 +27,14 @@ From building `NoiseBandMomentum_NQ_MNQ`, `GapOpeningDrive_NQ_MNQ` and `TrendDay
 
 84. **Standing requirement (2026-11-10): every new script must be testable tick by tick in Replay on ONE Trade Account.** Build it as a leg of the suite or with the same own-order tracking.
 
+85. **A decision that reads another chart must wait until that chart's bar is final.** When bar k of the trading chart closes, the reference chart's bar k may not have its last trade yet, or may not exist yet. `MomentumSuite` v2 marks the decision as pending, and on every study call checks whether the reference chart has a bar for the same time AND a later one; only then does it read the close and decide. If the trading chart closes bar k+1 first, the decision is dropped and counted. Never read `ref[SC_LAST][last]` at the moment your own bar closes. (Mock only; first Replay check.)
+
+86. **Feed a reference market's session statistics from its final bars only, with a cursor.** One pass, in order, never the forming bar; the same closed-bar discipline as #26/#27 applied to the second chart.
+
+87. **Inputs appended in a later version must make "reads 0" mean "feature off / default value".** v2's three new legs read 0 on a v1 study already on the chart: the on/off inputs read No, contract counts and distances fall back to their defaults, and the reference chart reads 0 = none. The old study keeps behaving as v1 until re-added (#15, #64).
+
+88. **When several legs must leave on the same call, decide first, act second.** Pass 1 marks every leg the engine wants out; pass 2 flattens if nothing else is staying, otherwise tightens each leaving leg's stop. With one pass, the first leg saw the second as "staying" and both took the slower path.
+
 ## 3. Research record (NQ 1-minute, 2017-01 → 2024-03, $2.50 per round trip)
 
 - **Intraday mean reversion lost in every form tried**: gap fade, VWAP 1.5–2.5σ fade, failed breakout of the prior-day and overnight extremes, Kaufman's midday support/resistance. Also on ES. Do not spend another script on a fade without new evidence.
@@ -42,3 +50,10 @@ From building `NoiseBandMomentum_NQ_MNQ`, `GapOpeningDrive_NQ_MNQ` and `TrendDay
 - Does the TALLY after the chart loads agree with the Replay result for NBM and TVP? (It will not for GOD, #77.)
 - Entry timing: how many seconds after the bar close does the first study call arrive at your chart update interval? The scripts log it when it exceeds the limit.
 - Out-of-sample: everything after 2024-03-07.
+
+## 5. Research record, second batch (2026-11-11)
+
+- **NQ's relative strength against ES in the first half hour persists to the close** (PF 1.31 / 1.59; all 17 settings positive; also against YM). Entered later in the day the effect is gone.
+- **Adding to an NBM trade that is already ahead pays** (PF 1.37 / 1.62) but is the same bet again.
+- **ES breaking its noise band before NQ does** gives a low-correlation entry (0.12 with the rest) that is thin in 2017–2021.
+- **Rejected:** band retest, lunch-range breakout, relative strength after 11:00, ES confirmation as an NBM filter.

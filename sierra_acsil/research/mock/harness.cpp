@@ -3,6 +3,8 @@
 #include STUDY_FILE
 #include <cstdlib>
 #include <cstring>
+#include <map>
+#include <array>
 int main(int argc, char** argv) {
   s_sc sc; FILE* in = fopen(argv[1], "r"); sc.br.out = fopen(argv[2], "w"); sc.log = fopen(argv[3], "w");
   const int hist = atoi(argv[4]), recalcEvery = atoi(argv[5]), mode = atoi(argv[6]);
@@ -11,12 +13,19 @@ int main(int argc, char** argv) {
   const char* ev; long failAt = (ev = getenv("FAILFLAT_AT")) ? atol(ev) : -1; long injAt = (ev = getenv("INJECT_AT")) ? atol(ev) : -1;
   if (getenv("TZ_UTC")) sc.ConvertDateTimeUTCToChartTimeZone = &s_sc::ConvUTC;
   auto recalc = [&]() { sc.IsFullRecalculation = 1; for (int i = 0; i < sc.ArraySize; ++i) { sc.Index = i; STUDY_FN(sc); } sc.IsFullRecalculation = 0; };
+  std::map<long long, std::array<double, 4>> ref;
+  if (const char* rp = getenv("REF")) { FILE* rf = fopen(rp, "r"); char ln[256]; int rd, rt; double a, b, e, g, vv;
+    while (fgets(ln, sizeof ln, rf)) if (sscanf(ln, "%d,%d,%lf,%lf,%lf,%lf,%lf", &rd, &rt, &a, &b, &e, &g, &vv) == 7) ref[(long long)rd * 86400 + rt] = { a, b, e, g }; fclose(rf); }
   int d, t; double o, h, l, c, v; long calls = 0, ticks = 0, viol = 0; int sessions = 0, lastD = 0; bool live = false; char line[256];
   auto call = [&](int i) { sc.Index = i; STUDY_FN(sc); ++calls; };
   while (fgets(line, sizeof line, in)) {
     if (sscanf(line, "%d,%d,%lf,%lf,%lf,%lf,%lf", &d, &t, &o, &h, &l, &c, &v) != 7) continue;
     if (d != lastD) { lastD = d; ++sessions; if (!live && sessions > hist) { live = true; recalc(); } }
     const int bt = t - t % 300; const int n = sc.ArraySize;
+    { auto it = ref.find((long long)d * 86400 + t);
+      if (it != ref.end()) { const auto& r = it->second; const int rn = (int)sc.rC.size();
+        if (rn == 0 || sc.rDT.d[rn - 1] != d || sc.rDT.t[rn - 1] != bt) { sc.rO.push_back((float)r[0]); sc.rH.push_back((float)r[1]); sc.rL.push_back((float)r[2]); sc.rC.push_back((float)r[3]); sc.rDT.d.push_back(d); sc.rDT.t.push_back(bt); }
+        else { if (r[1] > sc.rH[rn - 1]) sc.rH[rn - 1] = (float)r[1]; if (r[2] < sc.rL[rn - 1]) sc.rL[rn - 1] = (float)r[2]; sc.rC[rn - 1] = (float)r[3]; } } }
     const bool nb = n == 0 || sc.BaseDateTimeIn.d[n - 1] != d || sc.BaseDateTimeIn.t[n - 1] != bt;
     const double px[4] = { o, c >= o ? l : h, c >= o ? h : l, c };
     for (int k = 0; k < 4; ++k) {
