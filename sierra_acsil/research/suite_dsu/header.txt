@@ -1,0 +1,114 @@
+#include "sierrachart.h"
+
+SCDLLName("DiversifiedSuite_NQ_MNQ")
+
+/*============================================================================
+  DiversifiedSuite_NQ_MNQ  v1  --  four strategies, ONE trade account
+  (Lessons #12: the two lines above stay at the very top of the file.)
+
+  WHAT IT DOES
+    Runs the four non-momentum MNQ strategies of README_ReversionTrio.md in
+    one study, so they can be Replay-tested tick by tick and traded on one
+    account. Each has its own on/off switch and contract count, so each can
+    also be tested alone (it then trades exactly like its single file):
+      DWR  Daily washout rebound: 2-period RSI of the day-session closes
+           below 30 -> buy the 09:30 open; stop 0.75 x average day range.
+      VAR  Value-area re-entry: the session opens outside the prior value
+           area (70% of its volume); the first 30-minute close back inside,
+           10:00-12:30 -> trade towards the far side; stop 0.20 x range.
+      CEB  Compression-expansion breakout: only after a narrow-range day
+           (NR4); the first 5-minute close outside the 30-minute opening
+           range, up to 13:00 -> follow it; stop 0.25 x range.
+      EDF  End-of-day flow: at 15:00, at least 1.0% from the prior close ->
+           trade with the move into the close; stop 0.40 x range.
+    No targets. One trade per strategy per day. All flat at 15:55 New York.
+    average day range = mean high-low of the last 14 full day sessions.
+    Rules, sources and the full research record: README_ReversionTrio.md
+    and the four single-strategy files (the engines here are the same code).
+
+  HOW ONE ACCOUNT HOLDS FOUR STRATEGIES
+    L1  Each strategy owns one LEG: its own market entry with its own
+        ATTACHED stop (Stop1Offset from the actual fill). A leg is followed
+        by its own order IDs, never by the account position (lessons #80).
+    L2  The account position must always equal the sum of the open legs. A
+        difference that lasts 5 s of trade time flattens everything.
+    L3  A leg may open only if no other leg is open or working in the
+        OPPOSITE direction. In 2017-2024 that refused 95 of 1,902 signals
+        (VAR 42, EDF 30, CEB 23; nearly all against an open DWR long). They
+        made +$1,018 net in seven years, so one account costs about $12 a
+        month against four separate accounts.
+    L4  A leg ends on its attached stop or at the flat time (one
+        FlattenAndCancelAllOrders for all legs). No stop is ever modified.
+    L5  Day limits use the ACCOUNT's realised P&L since the first call of
+        the trading day plus the open legs: daily loss halt (flattens),
+        profit lock, losing legs in a row. 0 = off (#36). Reset on a new
+        trading day (#43).
+    L6  Size per leg: fixed contracts (each strategy's input), or risk % of
+        the account size input over that leg's stop, at most 'Max contracts
+        per leg'. Optional caps: $ risk per leg, and $ risk of all open legs
+        together at their stops (reduces the new leg, then skips it).
+        MaximumPositionAllowed = the enabled legs' sizes added up.
+    L7  Everything else follows the single-strategy files: one position read
+        per call (#17), CHART CHECK and feed checks, late-signal limit, CME
+        short sessions, flatten re-issue, settings written on every call.
+
+  ORDER LIFECYCLE (per leg)
+    SIGNAL (engine, at a bar close) -> ENTRY (market, own attached stop) ->
+    FILL (parent order FILLED; fill price read from the order) -> STOP
+    working (FILL VERIFY once; every leg's stop must cover its contracts) ->
+    EXIT (attached stop filled, or the 15:55 flatten) -> leg P&L logged, leg
+    reset. The account P&L used by the halts is Sierra's own.
+
+  MEASURED (this file in the mock: NQ 1-minute data 2017-01 .. 2024-03 as 4
+  ticks per bar, 1 MNQ per leg, $2.50 per contract round trip)
+    1,792 legs | 48.5% winners | profit factor 1.45 | net +$40,400 |
+    $464 per month (median $176) | 55 of 87 months positive | best month
+    +$3,810, worst -$1,054 | max drawdown -$3,859 | worst day -$944 |
+    longest losing streak 10 | average win $149, average loss -$96 |
+    0.96 legs per day, at most 3 open at once.
+    By year: 2017 +508, 2018 +2,142, 2019 +117, 2020 +10,540, 2021 +5,319,
+    2022 +13,206, 2023 +7,780, 2024 (to March) +790.
+    2017-2021: PF 1.41, $310/month. 2022-2024: PF 1.50, $830/month.
+    At $5.00 per round trip: $413/month; at $7.50: $361/month.
+    By leg ($/month, PF): DWR 181 (1.38) | VAR 63 (1.32) | CEB 88 (1.45) |
+    EDF 133 (1.87).
+    Monte Carlo, one year (5-day blocks): 4.2% of years lose; drawdown
+    median -$1,651, 99th percentile -$5,006.
+    Each leg alone reproduces its single-strategy file fill for fill; all
+    four together equal those trades minus the 95 refused legs, to the cent.
+    READ BEFORE SIZING: about 85 ideas were tried to find these four, so the
+    survivors flatter themselves. EDF made half its profit in 2022 and is the
+    least proven before 2022; VAR has a t-statistic of 1.7 on its own; CEB
+    did not carry over to ES. 2017 and 2019 made almost nothing. Drawdowns
+    scale with the index level: roughly 2.4 x the figures above at NQ
+    25,000. A daily loss halt tighter than one full stop of the widest leg
+    (DWR, 0.75 x range) cuts the washout trades it depends on.
+    NOT TESTED: anything after 2024-03-07; anything in Sierra.
+
+  FIRST REPLAY CHECKS (unverified until seen in Sierra)
+    1 "DSU <leg> FILL VERIFY ok" for each leg (MARKET parent with
+      Stop1Offset: the stop at fill -/+ offset, difference 0.00).
+    2 Two legs open at once: two working stops, position = 2; one stop
+      filling leaves the other leg's stop working and position = 1.
+    3 s_SCTradeOrder::AvgFillPrice is non-zero for filled parents and stops
+      (used for the per-leg P&L line only; the halts use the account P&L).
+    4 One "engine SIGNAL #n ... TRADED / NOT traded" line per SIGNAL line;
+      "opposite to a leg" refusals only when another leg is open.
+    5 Number of Open Trades = 0 at the end; every exit before 15:56.
+
+  BACKTEST IN SIERRA (tick by tick, one account)
+    MNQ continuous contract (volume rollover, back-adjusted), 5-minute bars,
+    New York time zone, overnight session loaded (DWR decides on the 09:25
+    bar), at least 30 days loaded before the start. Trade Simulation Mode
+    ON, commission set (#55). Clear trade data (#53, #71). Chart >> Replay
+    Chart, Accurate Trading System Back Test mode (#54). No other study may
+    trade this symbol on the same Trade Account (#72): do not add the four
+    single-strategy studies or MomentumSuite to the same account.
+
+  STORAGE: Persistent pointer 1 = Engine (heap, rebuilt on a full
+    recalculation), pointer 2 = Trader (heap, kept). Freed on the last call.
+  INSTALL: ACS_Source\DiversifiedSuite_NQ_MNQ.cpp, Build Custom Studies DLL,
+    add "Diversified Suite NQ MNQ v1" to an MNQ 5-minute chart. Keep the
+    Trade Window "Attached Orders" list EMPTY. Message Log lines start "DSU".
+============================================================================*/
+

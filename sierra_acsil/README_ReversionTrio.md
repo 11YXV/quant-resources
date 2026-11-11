@@ -259,3 +259,60 @@ Four new scripts by year: 2017 +$515 · 2018 +$2,282 · 2019 +$433 · 2020 +$10,
 - With MomentumSuite at 1 MNQ per leg: **$1,702 a month**, drawdown −$5,060, 62 of 87 months positive.
 - If the same edge in basis points held at NQ 25,000, the four new scripts alone would be about $1,030 a month, with drawdowns about 2.4 times the historical ones. That is an extrapolation, not a result.
 - None of it is tested after March 2024.
+
+---
+
+## Combined study for one account (2026-11-11): `DiversifiedSuite_NQ_MNQ.cpp`
+
+The four scripts above (DWR, VAR, CEB, EDF) in one study, on one chart and one Trade Account. Built like `MomentumSuite_NQ_MNQ.cpp`, and it can run next to MomentumSuite only if each has **its own Trade Account**.
+
+**How it shares the account**
+
+- Each strategy owns one leg: its own market entry with its own attached stop, followed by its order IDs.
+- The account position must equal the sum of the open legs; a difference lasting 5 seconds flattens everything.
+- A leg may not open against another open leg. That refused 95 of 1,902 signals in 2017–2024 (VAR 42, EDF 30, CEB 23; nearly all against a DWR long). They made +$1,018 in seven years, so one account costs about $12 a month.
+- Legs end on their own stop or at 15:55. No stop is ever modified.
+- Size per leg: fixed contracts, or risk % of the account input per leg (capped per leg). Two optional caps: $ risk per leg, and $ risk of all open legs together.
+
+**Measured** (the file in the mock, 2017-01 → 2024-03, 1 MNQ per leg, $2.50 per contract round trip)
+
+| Metric | Combined study | Four files on four accounts |
+|---|---|---|
+| Testing period | 2017-01-01 → 2024-03-07 | same |
+| Contracts | 1 per leg, at most 3 open | 1 per script |
+| Total net profit | $40,400 | $41,418 |
+| Average / median month | $464 / $176 | $476 / $207 |
+| Best / worst month | $3,810 / −$1,054 | $4,068 / −$1,100 |
+| Profitable / losing months (of 87) | 55 / 32 | 57 / 30 |
+| Legs | 1,792 | 1,887 |
+| Win rate | 48.5% | 48.2% |
+| Profit factor | 1.45 | 1.44 |
+| Expectancy per leg | $22.54 | $21.95 |
+| Maximum drawdown | −$3,859 | −$3,703 |
+| Longest losing streak | 10 | 11 |
+| Average win / loss | $149 / −$96 | $148 / −$96 |
+| Legs per day | 0.96 | 1.01 |
+| Costs included | $4,480 | $4,718 |
+| 2017–21 / 2022–24 per month | $310 / $830 | $321 / $846 |
+
+By year: 2017 +$508 · 2018 +$2,142 · 2019 +$117 · 2020 +$10,540 · 2021 +$5,319 · 2022 +$13,206 · 2023 +$7,780 · 2024 (to March) +$790. At $5.00 per round trip: $413 a month.
+
+By leg ($ a month, PF): DWR 181 (1.38) · VAR 63 (1.32) · CEB 88 (1.45) · EDF 133 (1.87). DWR is never refused (it enters first, at the open); the others lose a few legs each.
+
+Monte Carlo, one year: 4.2% of years lose; drawdown median −$1,651, 99th percentile −$5,006. Account size at 1 MNQ per leg (historical index level): a 25% drawdown happens in 21% of years with $10,000, 0.2% with $25,000.
+
+With MomentumSuite on a second account: $1,690 a month, drawdown −$5,216, worst month −$1,859, 62 of 87 months positive; daily correlation between the two studies 0.35.
+
+**Tests**
+
+| Check | Result |
+|---|---|
+| Each leg alone vs its single-strategy file | identical fills, all four |
+| All four together vs the four files minus refused legs | $44,719.50 gross both (one day differs by $0.01: the mock's averaged-price rounding) |
+| Recalculations at two intervals, once-a-minute calls, doubled calls | identical |
+| AddressSanitizer + UBSan; `-Wall -Wextra` warnings | clean; 0 |
+| Invariant violations (3.1 M calls) | 0 |
+| Faults: wrong time zone, 12 failed flattens, foreign contract, signals only | entries blocked / re-issued with MANUAL ACTION line / flattened after 5 s / no orders |
+| Controls: per-leg sizes 2/1/3/2, risk % sizing, $500 open-risk cap, $400 daily loss, losing-streak halt | position never above the cap; each control acted as set |
+
+**Not verified:** anything in Sierra (build, attached stops, two stops working at once, Replay results) and anything after 2024-03-07. The study is built from `research/suite_dsu/` (`assemble.sh`).

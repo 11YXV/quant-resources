@@ -93,3 +93,13 @@ From building `NoiseBandMomentum_NQ_MNQ`, `GapOpeningDrive_NQ_MNQ` and `TrendDay
 98. **Never write a MEASURED block before the final mock run.** EDF's header was drafted with provisional figures and replaced by the measured ones before the commit. Generate the header from the report, or write it last.
 
 **Research record, fifth batch.** Positive in both periods only for the end-of-day flow (percent move, NQ). Rejected: month-end rebalancing, pre-holiday, pre-FOMC drift, cross-day NQ–ES / NQ–YM relative-value reversal, same-time-of-day persistence, narrow initial-balance breakout, VWAP fade in high-volatility regimes. The "down yesterday" cells of the Yu–Rentzler–Wolf sign table are the washout script again.
+
+## 9. DiversifiedSuite (2026-11-11): four legs on one account
+
+99. **A pre-open decision and session-bar decisions can share one engine.** DWR decides on the bar that ends at 09:30; VAR, CEB and EDF decide on session bars. With the "references once per date" rule (#93) the three session-bar legs trade exactly as in their single files, whether or not the pre-open bar is processed (verified fill for fill).
+
+100. **Reconcile a multi-leg study against its single files, not only against itself.** Each leg alone must reproduce its single file exactly; all legs together must equal the single files' trades minus the refused legs. Here both held to the cent, which also proves the refusal rule refused nothing else.
+
+101. **Measure the cost of the one-net-position rule before building.** Here 5% of signals were refused, worth about $12 a month; in MomentumSuite about 2%. If the refused legs had been a large share of the edge, separate accounts would have been the better design.
+
+102. **A cap on the open risk of all legs is the portfolio-level stop-loss a multi-leg study needs.** Per-leg caps do not limit three legs open in the same direction. 'Max $ risk of all open legs' sums each open or working leg's stop distance x contracts and reduces, then skips, the new leg.
