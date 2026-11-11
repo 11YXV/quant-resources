@@ -126,6 +126,19 @@ def CEB(nr=4,orb=6,last=42,stop=0.25,confirm=True):
                 if t: out.append(t)
                 break
     return out
+
+def EDF(mark=66,minpct=1.0,stop=0.40):
+    """bar whose close is 'mark' bars after the open (66 = 15:00 on 5-min bars): |close/prior close - 1| >= minpct% -> trade that way"""
+    out=[]
+    for D in days:
+        if not D.ok: continue
+        b=mark-1
+        if not D.bok[b]: continue
+        mv=D.C[b]/D.prevClose-1
+        if abs(mv)*100<minpct: continue
+        t=trade(D,b,1 if mv>0 else -1,stop*D.adr)
+        if t: out.append(t)
+    return out
 IS=TD<'2022-01-01'
 def stats(tr,cost=None,start='2017-01-01'):
     cost=COST if cost is None else cost

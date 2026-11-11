@@ -190,3 +190,72 @@ Real-time data required. `Allow LIVE orders` = Yes only with Trade Simulation Mo
 
 - `research/gen_rev/` — templates, the three decision functions, header texts, `gen.py`.
 - `research/batch4/` — data build (`mk.py`, `adj.py`), exploration (`e1.py` … `e14.py`), final reference model (`ref2.py`), model-vs-mock comparison (`cmp.py`), exit tests (`exits.py`), report (`report4.py`).
+
+---
+
+## Fourth script (2026-11-11): `EndOfDayFlow_NQ_MNQ.cpp` (EDF)
+
+**Rule.** At 15:00 New York, if NQ is at least 1.0% away from the prior day-session close, trade in the direction of that move at market; attached stop 0.40 × average day range; no target; flat at 15:55. One trade a day, about one day in three.
+
+**Why it should work.** Leveraged and inverse ETFs must rebalance at every close by an amount proportional to the day's return, in its direction, and short-gamma option dealers hedge the same way. Both flows are mechanical and concentrate near the close. Sources: Baltussen, Da, Lammers & Martens (2021, *Journal of Financial Economics*); Barbon, Beckmeyer, Buraschi & Moerke, *Liquidity provision to leveraged ETFs and equity options rebalancing flows* (SSRN 3925725). Barbon et al. find the leveraged-ETF channel the larger one, and later work finds that channel has weakened over time. The Nasdaq-100 leveraged-ETF complex (TQQQ / SQQQ) grew roughly tenfold from 2017 to 2022, which fits the effect being strongest on NQ after 2021. That last point is my hypothesis, not a tested result.
+
+**How it differs from MomentumSuite.** It decides once, at 15:00, from a fixed percent move against yesterday's close, and holds 55 minutes; the suite decides from intraday noise bands, mostly in the morning. It does trade with the day's move, so it is on the suite's side on many days. Daily correlation with the suite is 0.26.
+
+### Research round 5 (about 10 new ideas; about 85 in total)
+
+| Idea | 2017–21 PF | 2022–24 PF | Verdict |
+|---|---|---|---|
+| **End-of-day flow, percent move from prior close** | 1.54 | 2.31 | **Built (EDF).** 58 of 64 settings positive in both periods |
+| Same, move measured in average ranges | 0.94–1.13 | 1.85–2.02 | Flat before 2022: the percent measure is what holds |
+| Same on ES / YM | 0.71–0.87 / ~1.0 | 1.27–1.52 / ~1.0 | ES only after 2021; YM nothing |
+| Month-end rebalancing (fade month-to-date return) | 0.3–1.5 | 0.5–2.4 | Rejected: inconsistent, 60–120 trades |
+| Pre-holiday long | 1.1–1.3 | 1.3–1.4 | Rejected: 65 trades in 7 years |
+| Pre-FOMC drift (Lucca & Moench), long to 13:55 | 0.45–0.56 | 1.2–2.9 | Rejected |
+| Yesterday / overnight sign combinations (Yu, Rentzler & Wolf) | — | — | Only "down yesterday → long", which is the washout script |
+| Cross-day NQ vs ES / YM relative-value reversal | 1.1–1.35 | 0.7–1.1 | Rejected |
+| Same-time-of-day persistence (Heston, Korajczyk & Sadka) | 0.80–0.85 | 0.88–0.95 | Rejected: costs |
+| Narrow initial balance, close break | 0.7–1.1 | 1.1–1.4 | Rejected |
+| VWAP fade only in high-volatility regimes | 0.8–1.2 | 0.6–0.85 | Rejected: intraday fading loses again |
+| Sell after RSI(2) > 95 (washout mirror) | 1.29–1.33 | 1.26 (36 trades) | Not a new script; the washout file's 'RSI sell' input can switch it on |
+| OOPS (open beyond yesterday's extreme, back through it) | 0.86–1.20 | 1.15–1.55 | Overlaps the value-area script |
+
+### Measured (the `.cpp` in the mock, 2017-01 → 2024-03, 1 MNQ, $2.50 per round trip)
+
+| Metric | EDF | Four new scripts | MomentumSuite + four new |
+|---|---|---|---|
+| Total net profit | $12,612 | $41,418 | — |
+| Average / median month | $145 / $2 | $476 / $207 | $1,702 / $933 |
+| Best / worst month | $1,921 / −$476 | $4,068 / −$1,100 | — / −$1,859 |
+| Profitable months (of 87) | 47 (5 without a trade) | 57 | 62 |
+| Trades | 560 | 1,887 | — |
+| Win rate | 57.7% | 48.2% | — |
+| Profit factor | 1.88 | 1.44 | — |
+| Expectancy per trade | $22.52 | $21.95 | — |
+| Maximum drawdown | −$862 | −$3,703 | −$5,060 |
+| Longest losing streak | 7 | 11 | — |
+| Average win / loss | $84 / −$61 | $148 / −$96 | — |
+| Trades per day | 0.30 | 1.01 | — |
+| Costs included | $1,400 | $4,718 | — |
+| 2017–21 / 2022–24 per month | $73 / $313 | $321 / $846 | $1,128 / $2,978 |
+| At $5.00 per round trip | $129 | $422 | — |
+| Daily Sharpe | 1.81 | 1.75 | 2.19 |
+
+EDF by year: 2017 +$90 · 2018 +$1,234 · 2019 −$435 · 2020 +$3,355 · 2021 +$153 · 2022 +$6,262 · 2023 +$2,290 · 2024 (to March) −$336.
+
+Four new scripts by year: 2017 +$515 · 2018 +$2,282 · 2019 +$433 · 2020 +$10,876 · 2021 +$5,127 · 2022 +$14,331 · 2023 +$7,310 · 2024 (to March) +$545. Monte Carlo, one year: 3.7% of years lose; drawdown median −$1,604, 99th percentile −$4,769.
+
+**Verification.** 562 of 562 trades identical to the Python model (same days, sides, entry prices, P&L). Identical under recalculations at two intervals, once-a-minute calls and doubled calls; sanitizers clean; 0 warnings; 0 invariant violations. Faults: wrong time zone, failed flattens, foreign position, signals-only, risk-% sizing, $ cap, daily-loss halt, all behaving as in the other three.
+
+**Read this before sizing EDF**
+
+- Half its profit is from 2022, and the quiet years made nothing.
+- In 2017–21 the result depends on the exit minute: PF 1.54 at 15:55, 1.25 at 15:50 or 15:59.
+- Measured in average ranges instead of percent, the same idea was flat before 2022.
+- It is the strongest candidate for your 2024–today export to confirm or kill. If that period looks like 2022–24, it is the best single script here; if it looks like 2017–21, it is small.
+
+### Where the $1,000 target stands
+
+- Four new scripts at 1 MNQ each: **$476 a month** measured (index levels averaging about 10,500), drawdown −$3,703.
+- With MomentumSuite at 1 MNQ per leg: **$1,702 a month**, drawdown −$5,060, 62 of 87 months positive.
+- If the same edge in basis points held at NQ 25,000, the four new scripts alone would be about $1,030 a month, with drawdowns about 2.4 times the historical ones. That is an extrapolation, not a result.
+- None of it is tested after March 2024.

@@ -83,3 +83,13 @@ From building `NoiseBandMomentum_NQ_MNQ`, `GapOpeningDrive_NQ_MNQ` and `TrendDay
 95. **A volume profile from 5-minute bars (volume spread evenly over each bar's range, 1-point bins) gave the same value-area result as one from 1-minute bars.** `sc.VolumeAtPriceForBars` is not needed, and the study stays testable in the mock.
 
 **Research record, fourth batch.** Mean reversion inside the day lost again in every new form (overnight session, 1–15-minute shocks, value-area edges, initial balance, late-day VWAP, hedged NQ–ES spread, sweep-and-reclaim, volume climax). It works across days (buy the open after a daily washout; the sell-side mirror does not) and against yesterday's value area. A daily-loss halt tighter than one full stop turned DWR negative. About 75 ideas tried in total; twelve kept.
+
+## 8. Fourth new script (2026-11-11): EndOfDayFlow
+
+96. **Normalisation can decide whether an edge exists.** The end-of-day flow measured as a move in average day ranges was flat in 2017–2021; as a percent move from the prior close it was positive in both periods. Use the unit the mechanism works in: leveraged-ETF rebalancing is proportional to the percent return.
+
+97. **Check exit-minute sensitivity for any trade that is held only minutes.** EDF's 2017–2021 profit factor moved from 1.54 (exit 15:55) to 1.25 (15:50 or 15:59). A 5-minute shift that changes the result that much means that period's edge is thin.
+
+98. **Never write a MEASURED block before the final mock run.** EDF's header was drafted with provisional figures and replaced by the measured ones before the commit. Generate the header from the report, or write it last.
+
+**Research record, fifth batch.** Positive in both periods only for the end-of-day flow (percent move, NQ). Rejected: month-end rebalancing, pre-holiday, pre-FOMC drift, cross-day NQ–ES / NQ–YM relative-value reversal, same-time-of-day persistence, narrow initial-balance breakout, VWAP fade in high-volatility regimes. The "down yesterday" cells of the Yu–Rentzler–Wolf sign table are the washout script again.

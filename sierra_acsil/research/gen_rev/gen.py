@@ -64,8 +64,25 @@ S['CEB']=dict(FILE='CompressionExpansionBreakout_NQ_MNQ',NS='ceb',TAG='CEB',GRAP
         DefIN(IN_OR_MIN,      "Opening range, minutes (measured 30; a multiple of the bar size)", D.OrMinutes, 5, 180);
         DefTM(IN_LAST_ENTRY,  "Last bar close that may open a trade (New York; measured 13:00)", D.LastEntry);
         DefFL(IN_STOP_ADR,    "Attached stop, x average day range (measured 0.25)", D.StopAdr, 0.02, 5.0);''')
+S['EDF']=dict(FILE='EndOfDayFlow_NQ_MNQ',NS='edf',TAG='EDF',GRAPH='End Of Day Flow NQ MNQ',DEF_MAXTR='1',
+ DESC='End-of-day rebalancing flow on MNQ: at 15:00 New York, if the price is at least 1.0 percent away from the prior day-session close, trade in the direction of the move (leveraged ETF rebalancing and short-gamma option hedging buy strength and sell weakness into the close); attached stop 0.40 x the 14-session average range; no target; flat at 15:55 New York. MNQ 5-minute chart, New York time.',
+ BAND_STYLE='DRAWSTYLE_DASH',L_STYLE='DRAWSTYLE_IGNORE',UB_NAME='Prior close + min move',LB_NAME='Prior close - min move',L1_NAME='Move from prior close at the decision, % (stored)',L2_NAME='(unused)',
+ INPUT_ENUM='        IN_MIN_MOVE = 0, IN_ENTRY_MARK, IN_STOP_ADR,',
+ PARAM_FIELDS='''        double MinMovePct = 1.0;                       // |decision close / prior close - 1|, percent
+        int    EntryMark  = 15 * 3600;                 // decision bar close time
+        double StopAdr    = 0.40;                      // attached stop, x average day range
+'''+COMMON_FIELDS,
+ READ_PARAMS='''        P.MinMovePct = R.GF(IN_MIN_MOVE, 0.05, 20.0, D.MinMovePct);
+        P.EntryMark  = R.GT(IN_ENTRY_MARK, D.EntryMark);
+        P.StopAdr    = R.GF(IN_STOP_ADR, 0.02, 5.0, D.StopAdr);
+        P.VaBin      = sc.TickSize > 0.0f ? 4.0 * sc.TickSize : 1.0;''',
+ DEF_INPUTS='''        DefFL(IN_MIN_MOVE,    "Min move from the prior day-session close at the decision, % (measured 1.0; positive 0.75-1.5)", D.MinMovePct, 0.05, 20.0);
+        DefTM(IN_ENTRY_MARK,  "Decision at (bar close, New York; measured 15:00; a multiple of the bar size)", D.EntryMark);
+        DefFL(IN_STOP_ADR,    "Attached stop, x average day range (measured 0.40; similar 0.40-0.60)", D.StopAdr, 0.02, 5.0);''')
 out=sys.argv[1]
+only=sys.argv[2:] 
 for k,s in S.items():
+    if only and k not in only: continue
     s=dict(s); s['NSU']=s['NS'].upper(); s['STRATEGY']=open(f"{G}/strat_{s['NS']}.inc").read().rstrip('\n')
     hdr=open(f"{G}/doc_{s['NS']}.txt").read().rstrip('\n') if os.path.exists(f"{G}/doc_{s['NS']}.txt") else '/* header */'
     body=eng+trd

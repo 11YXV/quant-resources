@@ -1,0 +1,76 @@
+/*============================================================================
+  EndOfDayFlow_NQ_MNQ  v1  --  engine + orders + hardening
+  (The two lines above stay at the very top of the file.)
+
+  WHAT IT DOES
+    One trade in the last hour, only on days that have already moved at
+    least 1% from yesterday's day-session close. At 15:00 New York it goes
+    WITH that move and holds to 15:55. About one day in three.
+
+  WHY IT SHOULD WORK (published mechanism, not proven here)
+    Leveraged and inverse ETFs must rebalance at every close by an amount
+    proportional to the day's return, in its direction: a 3x fund buys
+    after an up day and sells after a down day. Option dealers who are short
+    gamma hedge the same way. Both flows are mechanical, not informational,
+    and they concentrate near the close. Nasdaq-100 has the largest
+    leveraged-ETF complex relative to its futures market (TQQQ / SQQQ grew
+    roughly tenfold 2017-2022), which fits this effect being NQ-specific
+    in this data.
+      * Baltussen, Da, Lammers, Martens (2021), "Hedging demand and market
+        intraday momentum", Journal of Financial Economics 142.
+      * Barbon, Beckmeyer, Buraschi, Moerke (2021-22), "Liquidity provision
+        to leveraged ETFs and equity options rebalancing flows: evidence
+        from end-of-day stock prices", SSRN 3925725 / SFI 22-40. They find
+        the leveraged-ETF channel larger than the option channel, and later
+        work finds the leveraged-ETF part has weakened over time.
+
+  HOW IT DIFFERS FROM THE MOMENTUM SUITE
+    The suite's legs decide from the size of the move against an intraday
+    noise band, mostly in the morning, and hold whatever trend they find.
+    This decides once, at 15:00, from a fixed percent move against the
+    prior close, and holds 55 minutes. It does go WITH the day's move, so it
+    is the same direction as the suite on many days: daily P&L correlation
+    with the suite 0.26 (with the three reversion scripts 0.13).
+
+  RULES
+    R1 Session = 09:30-16:00 New York. Prior close = last trade of the prior
+       day session (one with at least 35% of its bars).
+    R2 At the close of the 14:55-15:00 bar: move = close / prior close - 1.
+       |move| >= 1.0% -> buy (move up) or sell (move down) at market.
+       No trade if that bar is missing, on CME holiday-shortened days, or
+       before 14 full sessions of history.
+    R3 Attached stop 0.40 x avg range (mean high-low of the last 14 full
+       sessions). No target. One trade a day. Flat at 15:55.
+
+  MEASURED (this file in the mock, NQ 1-minute data 2017-01 .. 2024-03, 1 MNQ,
+  $2.50 per round trip)
+    560 trades | 57.7% winners | profit factor 1.88 | net +$12,612 |
+    $145 per month (median $2) | 47 of 87 months positive, 35 negative,
+    5 without a trade | best month +$1,921, worst -$476 | max drawdown -$862 |
+    longest losing streak 7 | 3 best trades = 12% of the net | long +$5,796,
+    short +$6,816 | average win $84, average loss -$61 | 38 of 560 trades
+    ended on the stop, the rest at 15:55.
+    By year: 2017 +90, 2018 +1,234, 2019 -435, 2020 +3,355, 2021 +153,
+    2022 +6,262, 2023 +2,290, 2024 (to March) -336.
+    2017-2021: PF 1.54, $73/month. 2022-2024: PF 2.31, $313/month.
+    At $5.00 per round trip: $129/month; at $7.50: $113/month.
+    Daily P&L correlation: MomentumSuite 0.26; the washout, value-area and
+    compression scripts 0.09 / 0.08 / 0.11.
+    READ BEFORE TRUSTING IT
+      * Half of all profit is from 2022. Quiet years (2017, 2019, 2021) made
+        about nothing: it trades rarely when days do not move 1%.
+      * In 2017-2021 the result depends on the exit minute: leaving at 15:50
+        or 15:59 instead of 15:55 cut that period from PF 1.54 to 1.25 (and
+        to 1.0 with a 0.25 stop). 2022-2024 held up at every exit minute
+        (PF 2.1-2.3).
+      * Measured against the average range (instead of percent) the same
+        idea was flat in 2017-2021. On ES it lost in 2017-2021 and won in
+        2022-2024; on YM it did nothing. Treat it as an NQ result that
+        became strong after 2021, with a plausible structural reason.
+      * A daily-loss halt tighter than one full stop turns it negative
+        (mock: -$2,660 with 2 contracts and a $50 halt). Leave it off or set
+        it wider than one stop.
+      * About 85 ideas have now been tried across all rounds.
+    Positive in both periods in 58 of 64 settings (decision 14:30-15:15,
+    min move 0.75-1.5%, stop 0.15 / 0.25 / 0.4 / none).
+    NOT TESTED: anything after 2024-03-07.
