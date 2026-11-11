@@ -35,6 +35,10 @@ From building `NoiseBandMomentum_NQ_MNQ`, `GapOpeningDrive_NQ_MNQ` and `TrendDay
 
 88. **When several legs must leave on the same call, decide first, act second.** Pass 1 marks every leg the engine wants out; pass 2 flattens if nothing else is staying, otherwise tightens each leaving leg's stop. With one pass, the first leg saw the second as "staying" and both took the slower path.
 
+89. **"Signals on the chart after a recalculation are history" must not swallow the signal of the bar that just closed.** The order layer synced its "last signal handled" to the engine's latest signal on the first live call after any recalculation (#63). When a recalculation landed on the exact tick after a signal bar closed, that fresh signal was marked handled and never traded (found by injecting recalculations at a second interval: one EDB trade in seven years). **Fix: key "handled" by the signal bar's time, which survives recalculations, and treat as history only a signal that was already handled or whose bar is older than the bar that just closed.** The lateness and delay checks still stop anything stale. Applied to the suite and the three single-strategy files.
+
+90. **Inject recalculations at more than one interval.** One interval (every 7,919 ticks) passed for v1 and v2 and only hit the #89 case once nine legs gave it more signal bars to land on. A second interval costs one more run.
+
 ## 3. Research record (NQ 1-minute, 2017-01 → 2024-03, $2.50 per round trip)
 
 - **Intraday mean reversion lost in every form tried**: gap fade, VWAP 1.5–2.5σ fade, failed breakout of the prior-day and overnight extremes, Kaufman's midday support/resistance. Also on ES. Do not spend another script on a fade without new evidence.
@@ -57,3 +61,11 @@ From building `NoiseBandMomentum_NQ_MNQ`, `GapOpeningDrive_NQ_MNQ` and `TrendDay
 - **Adding to an NBM trade that is already ahead pays** (PF 1.37 / 1.62) but is the same bet again.
 - **ES breaking its noise band before NQ does** gives a low-correlation entry (0.12 with the rest) that is thin in 2017–2021.
 - **Rejected:** band retest, lunch-range breakout, relative strength after 11:00, ES confirmation as an NBM filter.
+
+## 6. Research record, third batch (2026-11-11)
+
+- **Adding to a trade that is already ahead worked on every base leg tried** (NBM, TVP, RSL, GOD, ESL), in both periods. It is leverage on trend days, not a new edge: it raises the worst month as well as the average.
+- **The first 15 minutes carry the same information as NBM's 10:00 decision** (EDB, PF 1.39 / 1.54); at 10 or 20 minutes it is weaker.
+- **Fading still loses, even restricted to low-volatility regimes.** That was the last reasonable place for a mean-reversion leg to hide.
+- **Rejected:** opening volume surge, resting VWAP limit without confirmation, overnight relative strength, weekday effects.
+- **Count so far: about 45 ideas tried, nine legs kept.** Treat every measured figure as an upper bound.

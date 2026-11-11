@@ -354,3 +354,65 @@ By year, six legs: 2017 +$438 · 2018 +$8,292 · 2019 −$166 · 2020 +$10,257 �
 - ESL is the least proven (little in 2017–21). GOD still has its fill-order and ES caveats. PYR adds size on NBM's good days, so it raises drawdown along with profit.
 - About 105 RSL / ESL signals in 7 years were refused because they were opposite to an open leg.
 - Reading the reference chart during a multi-chart Replay is not yet verified in Sierra.
+
+---
+
+## Three more again (2026-11-11) — suite v3 with legs EDB, PYT, PYS
+
+`MomentumSuite_NQ_MNQ.cpp` is now v3 with nine legs, all on one account, each with its own switch.
+
+**Third research batch** (`research/batch3_candidates.py`, `research/batch3_addons.py`)
+
+| Idea | PF 2017–21 | PF 2022–24 | Verdict |
+|---|---|---|---|
+| **Early drive breakout at 09:45 (EDB)** | 1.39 | 1.54 | **Built.** All 8 settings positive in both periods |
+| **Add to a TVP trade that is ahead (PYT)** | 1.67 | 2.07 | **Built** |
+| **Add to an RSL trade that is ahead (PYS)** | 1.53 | 1.95 | **Built** |
+| Add to a GOD trade / an ESL trade that is ahead | 2.77 / 1.13 | 1.49 / 1.49 | Positive, not built (GOD and ESL are the two least proven bases) |
+| Fade noise-band breaks in low-volatility regimes | 0.50–0.70 | 0.85–0.94 | Rejected. Fading loses even in quiet regimes |
+| Opening volume surge, follow the first 30 minutes | 0.93–1.16 | 0.73–1.52 | Rejected |
+| Resting limit at VWAP on trend days (no confirmation) | 0.92–1.11 | 1.03–1.15 | Rejected: the confirmation bar in TVP is what pays |
+| Overnight relative strength NQ vs ES, entered at the open | 0.90–0.97 | 1.15–1.21 | Rejected: loses in 2017–21 |
+| Weekday effects (long each weekday, open to close) | 0.88–1.50 | 0.73–1.44 | Rejected: no weekday holds in both periods |
+| NQ leading both ES and YM | 1.30 | 1.54 | Same trades as RSL; not a separate leg |
+
+**The three new rules**
+
+- **EDB** — at 09:45, the first 15 minutes have moved at least 1.0 × the average 15-minute move (last 14 sessions) and the close is on that side of VWAP → trade with it. Stop 0.15 × average day range. One a day.
+- **PYT / PYS** — when a TVP (or RSL) trade is ahead by 0.15 × average day range at a later 30-minute mark, add one contract with its own stop (0.25 × range). It leaves when the base trade ends. One add per base trade.
+
+**Measured** (v3 in the mock, 2017-01 → 2024-03, 1 MNQ per leg, $2.50 per contract round trip)
+
+| | Nine legs | Six legs (v2) | Three legs (v1) |
+|---|---|---|---|
+| Average / median month | $1,236 / $733 | $875 / $588 | $527 / $251 |
+| Best / worst month | $11,461 / −$2,386 | $8,246 / −$1,130 | $4,507 / −$845 |
+| Profitable months (of 87) | 58 | 61 | 59 |
+| Maximum drawdown | −$4,163 | −$3,200 | −$2,144 |
+| Worst day | −$1,085 | −$884 | −$657 |
+| 2017–21 / 2022–24 per month | $815 / $2,172 | $588 / $1,512 | $383 / $846 |
+| At $5.00 per round trip | $1,057 | $733 | $431 |
+| One-year drawdown, 99th percentile (Monte Carlo) | −$6,857 | −$5,122 | −$3,585 |
+
+| New leg | Legs | Win % | PF | $/month | 2017–21 | 2022–24 |
+|---|---|---|---|---|---|---|
+| EDB | 718 | 24.7 | 1.44 | 141 | 87 | 260 |
+| PYT | 260 | 51.2 | 1.95 | 102 | 64 | 186 |
+| PYS | 351 | 44.2 | 1.66 | 109 | 70 | 195 |
+
+By year, nine legs: 2017 +$1,391 · 2018 +$10,744 · 2019 +$363 · 2020 +$11,810 · 2021 +$24,614 · 2022 +$40,299 · 2023 +$13,790 · 2024 (to March) +$4,543.
+
+**Tests**
+
+- With the three newest legs off, v3 reproduces v2 exactly; with the six newer legs off it reproduces v1.
+- Each new leg alone matches its Python model (same day, side and entry price on 726 of 727, 258 of 264 and 353 of 360 trades).
+- Identical trades with recalculations injected at two different intervals and with every call doubled.
+- A recalculation test found a bug: a recalculation landing on the exact tick after a signal bar closed made the order layer treat that fresh signal as chart history and skip it. Signals are now keyed by time; only signals already handled, or older than the bar that just closed, count as history. Fixed in the suite and in the three single-strategy files (their trades are unchanged).
+
+**Read this before sizing**
+
+- **The headline now passes $1,000 a month on paper. That does not make it established.** About 45 ideas were tried to find nine legs. Selecting the survivors of a search inflates every number above.
+- **These are not nine independent bets.** Three legs are add-ons to winning trades, and six of the nine are intraday trend following. On 372 of 1,810 days six or more legs traded. The portfolio is the same idea at larger size on its best days — the worst month more than doubled from v1 (−$845 → −$2,386).
+- **Position size is now up to 9 MNQ at once.** At today's index level expect drawdowns of roughly 2.4 × the historical figures: about −$10,000, and a 99th-percentile year near −$16,000. That needs an account of about $35,000–40,000 to stay under half.
+- A more conservative set: NBM, TVP, RSL, EDB and the three add-ons PYR, PYT, PYS (ESL and GOD off).
+- Nothing after March 2024 has been tested, and nothing has run in Sierra.

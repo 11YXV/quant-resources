@@ -977,7 +977,7 @@ namespace nbm
         if (T.postRecalc)
         {
             T.postRecalc = 0;
-            T.sigSeqDone = E.sigSeq; T.sigKeyDone = E.sigKey;
+            if (E.sigKey <= T.sigKeyDone || E.sigBar != nowBar - 1) { T.sigSeqDone = E.sigSeq; T.sigKeyDone = E.sigKey; }   // history
             if (T.state != ST_FLAT)
             {
                 if (posSign != 0 && posSign == T.dir)
@@ -1173,7 +1173,7 @@ namespace nbm
         }
 
         // ---- a new engine signal: trade it or say why not
-        if (engOK && E.sigSeq > 0 && (E.sigSeq != T.sigSeqDone || E.sigKey != T.sigKeyDone))
+        if (engOK && E.sigSeq > 0 && E.sigKey > T.sigKeyDone)                // keyed by time: survives recalculations
         {
             T.sigSeqDone = E.sigSeq; T.sigKeyDone = E.sigKey;
             ++T.sigToday;

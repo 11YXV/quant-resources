@@ -3,11 +3,11 @@
 SCDLLName("MomentumSuite_NQ_MNQ")
 
 /*============================================================================
-  MomentumSuite_NQ_MNQ  v2  --  six strategies, ONE trade account
+  MomentumSuite_NQ_MNQ  v3  --  nine strategies, ONE trade account
   (Lessons #12: the two lines above stay at the very top of the file.)
 
   WHAT IT DOES
-    Runs six day-session strategies in a single study, so they can be
+    Runs nine day-session strategies in a single study, so they can be
     Replay-tested tick by tick and traded on one account. Each has its own
     on/off switch and contract count, so each can also be tested alone:
       NBM  Noise-band momentum: at each 30-minute mark 10:00-15:30, long when
@@ -33,7 +33,14 @@ SCDLLName("MomentumSuite_NQ_MNQ")
            reference market has closed beyond ITS OWN noise band while NQ is
            still inside its band but on that side of VWAP -> enter MNQ that
            way; stop 0.20 x average range; one trade a day.
-    RSL and ESL read a second chart: MES or ES, 5-minute bars, same time zone,
+      EDB  Early drive breakout (v3): at 09:45 the first 15 minutes have moved
+           at least 1.0 x the average 15-minute move and the close is on that
+           side of VWAP -> trade with it; stop 0.15 x average range; one a day.
+      PYT  Add-on to TVP (v3), PYS add-on to RSL (v3): when that strategy's
+           trade is ahead by 0.15 x average range at a later 30-minute mark,
+           add one contract with its own stop 0.25 x average range; it leaves
+           when the base trade ends. One add per base trade.
+    RSL, ESL (and so PYS) read a second chart: MES or ES, 5-minute bars, same time zone,
     same days loaded, its chart number in the input 'Reference chart'. They
     decide once the reference bar for the mark is final (its next bar has
     started). Without that chart those two legs make no signals.
@@ -49,9 +56,8 @@ SCDLLName("MomentumSuite_NQ_MNQ")
     L2  The account position must always equal the sum of the open legs. A
         difference that lasts 5 s of trade time flattens everything.
     L3  A leg may open only if no other leg is open or working in the OPPOSITE
-        direction. Among NBM, GOD, TVP and PYR this never happened in
-        2017-2024. RSL and ESL can disagree with an open leg: about 30 RSL
-        and 75 ESL signals in 7 years were refused for that reason.
+        direction. RSL, ESL and EDB can disagree with an open leg: about
+        36 RSL, 72 ESL and 6 EDB signals in 7 years were refused for that.
     L4  A leg ends on its attached stop, on the engine exit (NBM), or at the
         flat time. The engine exit of one leg while others stay open: that
         leg's stop is moved to 2 ticks behind the market and follows it until
@@ -73,24 +79,28 @@ SCDLLName("MomentumSuite_NQ_MNQ")
 
   MEASURED (this file in the mock: NQ 1-minute data 2017-01 .. 2024-03 as 4
   ticks per bar, 1 MNQ per strategy, $2.50 per contract round trip)
-    Six legs: 4,925 legs | net +$76,121 | $875 per month (median $588) | 61 of
-    87 months positive | best month +$8,246, worst -$1,130 | max drawdown
-    -$3,200 | worst day -$884 | 2017-2021 $588 per month, 2022-2024 $1,512.
-    By leg ($ per month, 2017-21 / 2022-24): NBM 256 (195 / 393), PF 1.45 |
-    GOD 123 (94 / 189), PF 1.49 | TVP 154 (101 / 273), PF 1.56 | RSL 154
-    (89 / 297), PF 1.40 | PYR 108 (67 / 198), PF 1.47 | ESL 79 (42 / 162),
-    PF 1.39. By year: 2017 +438, 2018 +8,292, 2019 -166, 2020 +10,257,
-    2021 +16,483, 2022 +26,779, 2023 +10,590, 2024 (to March) +3,447.
-    At $5.00 per round trip: $733 per month.
-    The first three legs alone (v1): $527 per month, max drawdown -$2,144.
-    Each leg switched on alone matches its independent Python model (same
-    entry price on 97-99% of trades). Identical trades with 361 full
-    recalculations injected and with every call doubled; called once a minute
-    only, same fills and 1.5% less net (the tightened stop of L4).
-    WEAKEST PARTS: ESL made little in 2017-2021 ($42 per month); GOD depends
-    on the order of ticks in its entry minute and lost on ES; PYR adds size
-    on the same days NBM wins, so it raises drawdown as well as profit.
-    About 35 ideas were tried to find these six: expect less than measured.
+    Nine legs: 6,248 legs | net +$107,553 | $1,236 per month (median $733) |
+    58 of 87 months positive | best month +$11,461, worst -$2,386 | max
+    drawdown -$4,163 | worst day -$1,085 | 2017-2021 $815 per month, 2022-2024
+    $2,172. At $5.00 per round trip: $1,057 per month.
+    By leg ($ per month, 2017-21 / 2022-24): NBM 258 (195 / 398) PF 1.45 | GOD
+    123 (94 / 189) PF 1.49 | TVP 154 (101 / 273) PF 1.56 | RSL 158 (95 / 299)
+    PF 1.42 | PYR 108 (67 / 198) PF 1.47 | ESL 83 (42 / 173) PF 1.40 | EDB 141
+    (87 / 260) PF 1.44 | PYT 102 (64 / 186) PF 1.95 | PYS 109 (70 / 195) PF 1.66.
+    By year: 2017 +1,391, 2018 +10,744, 2019 +363, 2020 +11,810, 2021 +24,614,
+    2022 +40,299, 2023 +13,790, 2024 (to March) +4,543.
+    Six legs (v2): $875 per month, drawdown -$3,200. Three legs (v1): $527,
+    drawdown -$2,144. With the newer legs off, v3 reproduces v2 and v1 exactly.
+    Each leg alone matches its independent Python model (same entry price on
+    97-99% of trades). Identical trades with full recalculations injected at
+    two intervals and with every call doubled; called once a minute only, same
+    fills and 1.2% less net (the tightened stop of L4).
+    READ BEFORE SIZING: these are not nine independent bets. Three legs are
+    add-ons to winning trades and six of the nine are plain intraday trend
+    following, so they win and lose on the same days: on 372 of 1,810 days six
+    or more legs traded. About 45 ideas were tried to find nine; expect less
+    than measured. ESL is the least proven; GOD depends on tick order in its
+    entry minute and lost on ES.
     A mock is not Sierra. Nothing after 2024-03-07 has been tested.
 
   FIRST REPLAY CHECKS (unverified until seen in Sierra)
@@ -118,7 +128,7 @@ SCDLLName("MomentumSuite_NQ_MNQ")
   STORAGE: Persistent pointer 1 = Engine (heap, rebuilt on a full
     recalculation), pointer 2 = Trader (heap, kept). Freed on the last call.
   INSTALL: ACS_Source\MomentumSuite_NQ_MNQ.cpp, Build Custom Studies DLL,
-    REMOVE a v1 study from the chart, add "Momentum Suite NQ MNQ v2" to an MNQ
+    REMOVE an older suite study from the chart, add "Momentum Suite NQ MNQ v3" to an MNQ
     5-minute chart and set 'Reference chart' to the MES chart's number. Keep the Trade
     Window "Attached Orders" list EMPTY. Message Log lines start "MSU".
 ============================================================================*/
@@ -128,7 +138,7 @@ SCDLLName("MomentumSuite_NQ_MNQ")
 #include <cstdio>
 #include <cmath>
 
-#define STUDY_VERSION      "v2"
+#define STUDY_VERSION      "v3"
 #define STUDY_BUILD_STAMP  __DATE__ " " __TIME__
 
 namespace msu
@@ -142,8 +152,8 @@ namespace msu
     enum : int { DIR_BOTH = 0, DIR_LONG, DIR_SHORT };
     enum : int { MAXB = 400, MAXLOOK = 30 };
     enum : int { KIND_MARKET = 0, KIND_STOP = 1 };
-    enum : int { S_NBM = 0, S_GOD, S_TVP, S_RSL, S_PYR, S_ESL, NS };
-    static const char* const kStrat[NS] = { "NBM", "GOD", "TVP", "RSL", "PYR", "ESL" };
+    enum : int { S_NBM = 0, S_GOD, S_TVP, S_RSL, S_PYR, S_ESL, S_EDB, S_PYT, S_PYS, NS };
+    static const char* const kStrat[NS] = { "NBM", "GOD", "TVP", "RSL", "PYR", "ESL", "EDB", "PYT", "PYS" };
 
     enum InputIdx : int
     {
@@ -155,20 +165,25 @@ namespace msu
         IN_SAFETY, IN_INHERITED, IN_ENTRY_DELAY, IN_EARLY_CLOSE,
         // v2 (appended; an older placed study reads 0 = off / default for these, lessons #15, #64)
         IN_REF_CHART, IN_RSL_ON, IN_RSL_QTY, IN_RSL_K, IN_RSL_BETA, IN_RSL_STOP,
-        IN_PYR_ON, IN_PYR_QTY, IN_PYR_PROFIT, IN_PYR_STOP, IN_ESL_ON, IN_ESL_QTY, IN_ESL_STOP
+        IN_PYR_ON, IN_PYR_QTY, IN_PYR_PROFIT, IN_PYR_STOP, IN_ESL_ON, IN_ESL_QTY, IN_ESL_STOP,
+        // v3 (appended)
+        IN_EDB_ON, IN_EDB_QTY, IN_EDB_Z, IN_EDB_STOP, IN_PYT_ON, IN_PYT_QTY, IN_PYS_ON, IN_PYS_QTY, IN_ADD_PROFIT, IN_ADD_STOP
     };
 
     enum SubgraphIdx : int
     {
         SG_VWAP = 0, SG_UB, SG_LB, SG_TRIG, SG_CANCEL, SG_TREND,
-        SG_LONG0, SG_LONG1, SG_LONG2, SG_LONG3, SG_LONG4, SG_LONG5, SG_SHORT0, SG_SHORT1, SG_SHORT2, SG_SHORT3, SG_SHORT4, SG_SHORT5,
-        SG_ENGINE_END, SG_STOP0 = SG_ENGINE_END, SG_STOP1, SG_STOP2, SG_STOP3, SG_STOP4, SG_STOP5, NSG
+        SG_LONG0, SG_SHORT0 = SG_LONG0 + NS, SG_ENGINE_END = SG_SHORT0 + NS, SG_STOP0 = SG_ENGINE_END, NSG = SG_STOP0 + NS   // one of each per leg
     };
 
     struct Params
     {
-        int    On[NS]     = { 1, 1, 1, 1, 1, 1 };
-        int    Qty[NS]    = { 1, 1, 1, 1, 1, 1 };
+        int    On[NS]     = { 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+        int    Qty[NS]    = { 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+        double EdbZ       = 1.0;                       // first 15 minutes' move, x the average move at 09:45
+        double EdbStop    = 0.15;
+        double AddProfit  = 0.15;                      // PYT / PYS: the base trade ahead by this, x average day range
+        double AddStop    = 0.25;
         int    RefChart   = 0;                         // chart number of the MES / ES 5-minute chart (0 = none: RSL, ESL idle)
         double RslK       = 0.45;                      // min |NQ move - beta x ES move|, x the average NQ move at 10:00
         double RslBeta    = 1.2;
@@ -257,7 +272,7 @@ namespace msu
 
     struct Strat                                            // one strategy's day state, signal interface and tally
     {
-        int     trend, tradesToday, dayDead;
+        int     trend, tradesToday, dayDead, addFor;
         double  orh, orl;
         int     sigSeq, sigBar, sigDir, sigKind, sigExpireTod;
         int64_t sigKey, exitKey;
@@ -289,7 +304,7 @@ namespace msu
         int    ringN, ringHead;
         Strat  s[NS];
         RefSess es;
-        int     pyrFor, refPendBar, refMiss;
+        int     refPendBar, refMiss;
         int64_t refPendKey;
         void ResetAll()
         {
@@ -476,31 +491,53 @@ namespace msu
         Emit(f, E, P, S_TVP, k, d, KIND_MARKET, 0.0, P.TvpStop * E.adr, 0.0, 0, "trend day, pullback to VWAP rejected");
     }
 
-    // PYR: one add-on contract to an NBM trade that is ahead and still beyond its band at a later 30-minute mark.
-    // It leaves with the NBM trade (or on its own stop).
-    template <class F> static void DecidePYR(F& f, Engine& E, const Params& P, int k, int tod, int bsec)
+    // Add-on legs (PYR to NBM, PYT to TVP, PYS to RSL): one more contract when the base strategy's trade is ahead by
+    // 'profit' x average range at a later 30-minute mark (PYR: and the close is still beyond the band). The add-on has
+    // its own stop and leaves when the base trade ends.
+    template <class F> static void DecideAdd(F& f, Engine& E, const Params& P, int k, int tod, int bsec, int si, int base,
+                                             double profit, double stopMult, bool needBand, const char* what)
     {
-        Strat& S = E.s[S_PYR];
-        const VTrade& n = E.s[S_NBM].vt;
+        Strat& S = E.s[si];
+        const VTrade& n = E.s[base].vt;
         VTrade& v = S.vt;
-        const bool nbmOn = n.state == VS_OPEN && !n.exitNext;
-        if (v.state != VS_FLAT && !nbmOn)                               // the NBM trade is over: leave with it
+        const bool baseOn = n.state == VS_OPEN && !n.exitNext;
+        if (v.state != VS_FLAT && !baseOn)                              // the base trade is over: leave with it
         {
             if (v.state == VS_OPEN) v.exitNext = 1; else v.state = VS_FLAT;
             S.exitKey = (int64_t)f.Date(k) * 86400 + tod; S.exitLong = S.exitShort = 1;
             return;
         }
         const int endT = tod + bsec;
-        if (v.state != VS_FLAT || !nbmOn || E.pyrFor == n.seq) return;
+        if (v.state != VS_FLAT || !baseOn || S.addFor == n.seq) return;
         if ((endT - P.SessOpen) % 1800 != 0 || endT > P.NbmLastEntry()) return;
-        const int    b  = (tod - P.SessOpen) / bsec;
-        const double c  = f.C(k);
-        const double ub = DMax(E.dOpen, E.prevClose) * (1.0 + P.NbmBand * E.sig[b]);
-        const double lb = DMin(E.dOpen, E.prevClose) * (1.0 - P.NbmBand * E.sig[b]);
-        if (!(n.dir * (c - n.px) >= P.PyrProfit * E.adr) || !(n.dir > 0 ? c > ub : c < lb) || !DirOn(P, n.dir)) return;
-        E.pyrFor = n.seq;
+        const int    b = (tod - P.SessOpen) / bsec;
+        const double c = f.C(k);
+        if (!(n.dir * (c - n.px) >= profit * E.adr) || !DirOn(P, n.dir)) return;
+        if (needBand)
+        {
+            const double ub = DMax(E.dOpen, E.prevClose) * (1.0 + P.NbmBand * E.sig[b]);
+            const double lb = DMin(E.dOpen, E.prevClose) * (1.0 - P.NbmBand * E.sig[b]);
+            if (!(n.dir > 0 ? c > ub : c < lb)) return;
+        }
+        S.addFor = n.seq;
         S.exitLong = S.exitShort = 0;
-        Emit(f, E, P, S_PYR, k, n.dir, KIND_MARKET, 0.0, P.PyrStop * E.adr, 0.0, 0, "NBM trade ahead and still beyond the band: add one");
+        Emit(f, E, P, si, k, n.dir, KIND_MARKET, 0.0, stopMult * E.adr, 0.0, 0, what);
+    }
+
+    // EDB: early drive breakout. At 09:45 the first 15 minutes have moved at least EdbZ x the average 15-minute move
+    // and the close is on that side of VWAP -> trade with it to the close.
+    template <class F> static void DecideEDB(F& f, Engine& E, const Params& P, int k, int tod, int bsec)
+    {
+        Strat& S = E.s[S_EDB];
+        if (tod + bsec != P.SessOpen + 900 || S.tradesToday > 0 || S.vt.state != VS_FLAT) return;
+        const int b = (tod - P.SessOpen) / bsec;
+        if (E.barsSeen != b + 1 || !(E.sig[b] > 0.0f)) return;         // a bar of the first 15 minutes is missing
+        const double c = f.C(k), z = (c / E.dOpen - 1.0) / E.sig[b];
+        const int    d = z >= P.EdbZ ? 1 : (z <= -P.EdbZ ? -1 : 0);
+        if (d == 0 || !(d > 0 ? c > E.vwap : c < E.vwap) || !DirOn(P, d)) return;
+        char what[120];
+        std::snprintf(what, sizeof what, "first 15 minutes %+.2f x the average move, on that side of VWAP", z);
+        Emit(f, E, P, S_EDB, k, d, KIND_MARKET, 0.0, P.EdbStop * E.adr, 0.0, 0, what);
     }
 
     // Feed the reference chart's FINAL bars (a later bar exists) up to and including time key 'upTo'.
@@ -617,7 +654,7 @@ namespace msu
                 if (E.s[si].vt.state == VS_OPEN) CloseVirtual(f, E, P, si, EX_EOD, E.dClose, k);
                 E.s[si].vt.state = VS_FLAT;
                 E.s[si].trend = 0; E.s[si].tradesToday = 0; E.s[si].dayDead = 0; E.s[si].orh = 0.0; E.s[si].orl = 0.0;
-                E.s[si].exitLong = E.s[si].exitShort = 0;
+                E.s[si].exitLong = E.s[si].exitShort = 0; E.s[si].addFor = 0;
             }
             if (E.curDate != 0)
             {
@@ -632,7 +669,7 @@ namespace msu
                 }
                 E.prevClose = E.barsSeen * 100 >= E.nb * 35 ? E.dClose : 0.0;
             }
-            E.curDate = date; ++E.sessions; E.pyrFor = 0;
+            E.curDate = date; ++E.sessions;
             E.nb = IMin((P.SessClose - P.SessOpen) / bsec, MAXB);
             E.halt = ExchangeHaltTod(date);
             E.barsSeen = 0; E.lastB = -1;
@@ -683,7 +720,10 @@ namespace msu
             DecideNBM(f, E, P, k, tod, bsec);
             DecideGOD(f, E, P, k, tod, bsec);
             DecideTVP(f, E, P, k, tod, bsec);
-            DecidePYR(f, E, P, k, tod, bsec);
+            DecideEDB(f, E, P, k, tod, bsec);
+            DecideAdd(f, E, P, k, tod, bsec, S_PYR, S_NBM, P.PyrProfit, P.PyrStop, true, "NBM trade ahead and still beyond the band: add one");
+            DecideAdd(f, E, P, k, tod, bsec, S_PYT, S_TVP, P.AddProfit, P.AddStop, false, "TVP trade ahead: add one");
+            DecideAdd(f, E, P, k, tod, bsec, S_PYS, S_RSL, P.AddProfit, P.AddStop, false, "RSL trade ahead: add one");
             if (P.RefChart > 0 && (tod + bsec - P.SessOpen) % 1800 == 0 && tod + bsec >= P.FirstMark())
             {
                 E.refPendBar = k; E.refPendKey = (int64_t)date * 86400 + tod;   // RSL / ESL: decided by RefDecide()
@@ -809,6 +849,16 @@ namespace msu
         P.PyrProfit  = F0(IN_PYR_PROFIT, 0.01, 5.0, D.PyrProfit);
         P.PyrStop    = F0(IN_PYR_STOP, 0.01, 5.0, D.PyrStop);
         P.EslStop    = F0(IN_ESL_STOP, 0.01, 5.0, D.EslStop);
+        P.On[S_EDB]  = sc.Input[IN_EDB_ON].GetYesNo() ? 1 : 0;
+        P.On[S_PYT]  = sc.Input[IN_PYT_ON].GetYesNo() ? 1 : 0;
+        P.On[S_PYS]  = sc.Input[IN_PYS_ON].GetYesNo() ? 1 : 0;
+        P.Qty[S_EDB] = Q0(IN_EDB_QTY, D.Qty[S_EDB]);
+        P.Qty[S_PYT] = Q0(IN_PYT_QTY, D.Qty[S_PYT]);
+        P.Qty[S_PYS] = Q0(IN_PYS_QTY, D.Qty[S_PYS]);
+        P.EdbZ       = F0(IN_EDB_Z, 0.1, 10.0, D.EdbZ);
+        P.EdbStop    = F0(IN_EDB_STOP, 0.01, 5.0, D.EdbStop);
+        P.AddProfit  = F0(IN_ADD_PROFIT, 0.01, 5.0, D.AddProfit);
+        P.AddStop    = F0(IN_ADD_STOP, 0.01, 5.0, D.AddStop);
         return P;
     }
 
@@ -1141,7 +1191,7 @@ namespace msu
                                                   : (!sim ? " | *** LIVE ORDERS ENABLED ***" : "")));
             sc.AddMessageToLog(msg, (off || liveBlocked || !sim) ? 1 : 0);
             HHMM(hm, sizeof hm, P.EOD);
-            char legs[160]; legs[0] = 0;
+            char legs[240]; legs[0] = 0;
             for (int s = 0; s < NS; ++s)
             {
                 const size_t n = std::strlen(legs);
@@ -1231,7 +1281,8 @@ namespace msu
         if (T.postRecalc)
         {
             T.postRecalc = 0;
-            for (int s = 0; s < NS; ++s) { T.sigSeqDone[s] = E.s[s].sigSeq; T.sigKeyDone[s] = E.s[s].sigKey; }
+            for (int s = 0; s < NS; ++s)                                 // history: already handled, or older than the bar that just closed
+                if (E.s[s].sigKey <= T.sigKeyDone[s] || E.s[s].sigBar != nowBar - 1) { T.sigSeqDone[s] = E.s[s].sigSeq; T.sigKeyDone[s] = E.s[s].sigKey; }
             if ((AnyLeg(LG_OPEN) || AnyLeg(LG_PENDING)))
                 sc.AddMessageToLog("MSU: open or working legs carried across a recalculation -- still managed by their order IDs.", 0);
         }
@@ -1410,7 +1461,7 @@ namespace msu
         for (int s = 0; s < NS; ++s)
         {
             const Strat& S = E.s[s];
-            if (!engOK || S.sigSeq <= 0 || (S.sigSeq == T.sigSeqDone[s] && S.sigKey == T.sigKeyDone[s])) continue;
+            if (!engOK || S.sigSeq <= 0 || S.sigKey <= T.sigKeyDone[s]) continue;      // keyed by time: survives recalculations
             T.sigSeqDone[s] = S.sigSeq; T.sigKeyDone[s] = S.sigKey;
             if (!P.On[s]) continue;                                           // switched off: tally only, no log line
             ++T.sigToday;
@@ -1472,8 +1523,8 @@ SCSFExport scsf_MomentumSuite_NQ_MNQ(SCStudyInterfaceRef sc)
     if (sc.SetDefaults)
     {
         sc.GraphName        = "Momentum Suite NQ MNQ " STUDY_VERSION;
-        sc.StudyDescription = "Six MNQ day-session strategies in one study on one trade account: noise-band momentum (NBM), relative strength vs MES (RSL), "
-                              "gap opening drive (GOD), VWAP pullback (TVP), pyramid add-on (PYR), reference market leads (ESL). One leg each, with its own "
+        sc.StudyDescription = "Nine MNQ day-session strategies in one study on one trade account: noise-band momentum (NBM), relative strength vs MES (RSL), "
+                              "gap opening drive (GOD), VWAP pullback (TVP), early drive breakout (EDB), reference market leads (ESL), add-ons PYR/PYT/PYS. One leg each, own "
                               "attached stop; all flat at 15:55 New York. MNQ 5-minute chart, New York time. Replay-testable tick by tick.";
         sc.AutoLoop         = 1;
         sc.GraphRegion      = 0;
@@ -1491,24 +1542,15 @@ SCSFExport scsf_MomentumSuite_NQ_MNQ(SCStudyInterfaceRef sc)
         Style(SG_TRIG,   "GOD entry trigger",                        DRAWSTYLE_DASH,       RGB(88, 166, 255),  2);
         Style(SG_CANCEL, "GOD cancel level",                         DRAWSTYLE_DASH,       RGB(150, 150, 150), 2);
         Style(SG_TREND,  "TVP day trend +1/-1 (stored)",             DRAWSTYLE_IGNORE,     RGB(200, 200, 200), 1);
-        Style(SG_LONG0,  "NBM long signal",                          DRAWSTYLE_ARROW_UP,   RGB(63, 185, 80),   3);
-        Style(SG_LONG1,  "GOD long signal",                          DRAWSTYLE_ARROW_UP,   RGB(88, 166, 255),  3);
-        Style(SG_LONG2,  "TVP long signal",                          DRAWSTYLE_ARROW_UP,   RGB(200, 140, 40),  3);
-        Style(SG_SHORT0, "NBM short signal",                         DRAWSTYLE_ARROW_DOWN, RGB(248, 81, 73),   3);
-        Style(SG_SHORT1, "GOD short signal",                         DRAWSTYLE_ARROW_DOWN, RGB(150, 70, 180),  3);
-        Style(SG_SHORT2, "TVP short signal",                         DRAWSTYLE_ARROW_DOWN, RGB(255, 150, 0),   3);
-        Style(SG_STOP0,  "Order: NBM leg stop",                      DRAWSTYLE_DASH,       RGB(248, 81, 73),   2);
-        Style(SG_STOP1,  "Order: GOD leg stop",                      DRAWSTYLE_DASH,       RGB(150, 70, 180),  2);
-        Style(SG_STOP2,  "Order: TVP leg stop",                      DRAWSTYLE_DASH,       RGB(255, 150, 0),   2);
-        Style(SG_LONG3,  "RSL long signal",                          DRAWSTYLE_ARROW_UP,   RGB(0, 200, 200),   3);
-        Style(SG_LONG4,  "PYR long add",                             DRAWSTYLE_ARROW_UP,   RGB(120, 220, 120), 2);
-        Style(SG_LONG5,  "ESL long signal",                          DRAWSTYLE_ARROW_UP,   RGB(180, 180, 255), 3);
-        Style(SG_SHORT3, "RSL short signal",                         DRAWSTYLE_ARROW_DOWN, RGB(200, 0, 200),   3);
-        Style(SG_SHORT4, "PYR short add",                            DRAWSTYLE_ARROW_DOWN, RGB(255, 140, 140), 2);
-        Style(SG_SHORT5, "ESL short signal",                         DRAWSTYLE_ARROW_DOWN, RGB(255, 200, 120), 3);
-        Style(SG_STOP3,  "Order: RSL leg stop",                      DRAWSTYLE_DASH,       RGB(200, 0, 200),   2);
-        Style(SG_STOP4,  "Order: PYR leg stop",                      DRAWSTYLE_DASH,       RGB(255, 140, 140), 2);
-        Style(SG_STOP5,  "Order: ESL leg stop",                      DRAWSTYLE_DASH,       RGB(255, 200, 120), 2);
+        static const COLORREF kCol[NS] = { RGB(63, 185, 80), RGB(88, 166, 255), RGB(200, 140, 40), RGB(0, 200, 200), RGB(120, 220, 120),
+                                           RGB(180, 180, 255), RGB(255, 105, 180), RGB(230, 200, 60), RGB(0, 160, 160) };
+        for (int q = 0; q < NS; ++q)
+        {
+            SCString nm;
+            nm.Format("%s long signal", kStrat[q]);        Style(SG_LONG0 + q,  nm.GetChars(), DRAWSTYLE_ARROW_UP,   kCol[q], 3);
+            nm.Format("%s short signal", kStrat[q]);       Style(SG_SHORT0 + q, nm.GetChars(), DRAWSTYLE_ARROW_DOWN, kCol[q], 3);
+            nm.Format("Order: %s leg stop", kStrat[q]);    Style(SG_STOP0 + q,  nm.GetChars(), DRAWSTYLE_DASH,       kCol[q], 2);
+        }
         sc.MaintainTradeStatisticsAndTradesData = 1;
 
         const Params D;
@@ -1576,6 +1618,16 @@ SCSFExport scsf_MomentumSuite_NQ_MNQ(SCStudyInterfaceRef sc)
         DefYN(IN_ESL_ON,      "ESL reference market leads (its band broken, NQ's not yet): trade it", D.On[S_ESL]);
         DefIN(IN_ESL_QTY,     "ESL contracts", D.Qty[S_ESL], 0, 100);
         DefFL(IN_ESL_STOP,    "ESL attached stop, x average day range (measured 0.20)", D.EslStop, 0.0, 5.0);
+        DefYN(IN_EDB_ON,      "EDB early drive breakout at 09:45: trade it", D.On[S_EDB]);
+        DefIN(IN_EDB_QTY,     "EDB contracts", D.Qty[S_EDB], 0, 100);
+        DefFL(IN_EDB_Z,       "EDB min first-15-minute move, x the average move at 09:45 (measured 1.0)", D.EdbZ, 0.0, 10.0);
+        DefFL(IN_EDB_STOP,    "EDB attached stop, x average day range (measured 0.15)", D.EdbStop, 0.0, 5.0);
+        DefYN(IN_PYT_ON,      "PYT add-on to a winning TVP trade: trade it", D.On[S_PYT]);
+        DefIN(IN_PYT_QTY,     "PYT contracts", D.Qty[S_PYT], 0, 100);
+        DefYN(IN_PYS_ON,      "PYS add-on to a winning RSL trade: trade it", D.On[S_PYS]);
+        DefIN(IN_PYS_QTY,     "PYS contracts", D.Qty[S_PYS], 0, 100);
+        DefFL(IN_ADD_PROFIT,  "PYT / PYS need the base trade ahead by, x average day range (measured 0.15)", D.AddProfit, 0.0, 5.0);
+        DefFL(IN_ADD_STOP,    "PYT / PYS attached stop, x average day range (measured 0.25)", D.AddStop, 0.0, 5.0);
         return;
     }
 
