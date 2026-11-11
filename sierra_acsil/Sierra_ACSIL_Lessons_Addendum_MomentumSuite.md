@@ -69,3 +69,17 @@ From building `NoiseBandMomentum_NQ_MNQ`, `GapOpeningDrive_NQ_MNQ` and `TrendDay
 - **Fading still loses, even restricted to low-volatility regimes.** That was the last reasonable place for a mean-reversion leg to hide.
 - **Rejected:** opening volume surge, resting VWAP limit without confirmation, overnight relative strength, weekday effects.
 - **Count so far: about 45 ideas tried, nine legs kept.** Treat every measured figure as an upper bound.
+
+## 7. Reversion trio (2026-11-11): DailyWashoutRebound, ValueAreaReentry, CompressionExpansionBreakout
+
+91. **`snprintf(dst, n, "%s", dst)` is undefined behaviour.** The cancel retry called `CancelPending(T.cancelWhy)`, which copied the stored reason onto itself. g++ 13 at `-O2 -Wall` reports it (`-Wrestrict`); the earlier `-Wall -Wextra` builds did not. **Fix: `if (why != T.cancelWhy)` before the copy.** Fixed in `gen_rev`; still present in `gen/tmpl_trader.inc` and the three momentum single-strategy files. Compile the mock build at `-O2` as well as `-O0`.
+
+92. **To enter AT the session open, decide on the bar that ends at the open.** The order layer trades a signal on the first call after its bar closes. A decision on the first session bar enters at 09:35 and gave up a third of DWR's edge. The engine now processes the one pre-open bar (`tod + bar seconds == session open`), builds the day's references there, and emits the signal on it. The chart must hold that bar (overnight session loaded). No change to the order layer was needed.
+
+93. **Build a day's references once per date, at the first bar handled for it, separately from the session reset.** With a pre-open decision the old "new session" block would have cleared a pending signal and the day's trade count at 09:30. Banking the finished session and resetting the day state now happen together at the first bar of the date (pre-open bar or first session bar); the session's own statistics start at the first session bar.
+
+94. **Back-adjust the research data the way the chart will be.** Unadjusted contract data puts a false return on every roll day (about 1% a quarter for NQ in 2022–23), which is enough to move an RSI of daily closes. The feed is now difference-adjusted at each roll, offsets rounded to the tick.
+
+95. **A volume profile from 5-minute bars (volume spread evenly over each bar's range, 1-point bins) gave the same value-area result as one from 1-minute bars.** `sc.VolumeAtPriceForBars` is not needed, and the study stays testable in the mock.
+
+**Research record, fourth batch.** Mean reversion inside the day lost again in every new form (overnight session, 1–15-minute shocks, value-area edges, initial balance, late-day VWAP, hedged NQ–ES spread, sweep-and-reclaim, volume climax). It works across days (buy the open after a daily washout; the sell-side mirror does not) and against yesterday's value area. A daily-loss halt tighter than one full stop turned DWR negative. About 75 ideas tried in total; twelve kept.

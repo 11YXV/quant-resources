@@ -1,0 +1,50 @@
+/*============================================================================
+  CompressionExpansionBreakout_NQ_MNQ  v1  --  engine + orders + hardening
+  (The two lines above stay at the very top of the file.)
+
+  WHAT IT DOES
+    Volatility cycle. Quiet days are followed by active ones. The study
+    trades ONLY on the day after a narrow-range day (yesterday's day-session
+    range was the smallest of the last 4 full sessions, "NR4"). On such a
+    day the first 5-minute close outside the 30-minute opening range is
+    followed in its direction, with a volatility stop, to 15:55. On all
+    other days (about three in four) it does nothing.
+
+  SOURCE OF THE IDEA
+    Crabel's narrow-range patterns (NR4 / NR7) as described in Kaufman,
+    Trading Systems and Methods 5th ed. (opening range breakout; volatility);
+    volatility clustering in Tsay, Analysis of Financial Time Series.
+    Tested here: the same breakout taken EVERY day is close to worthless
+    (PF 1.03 in 2017-2021); the narrow-range filter is what carries it.
+    It is a breakout, so it is the closest of the three new scripts to the
+    momentum suite, but the trigger is yesterday's compression, not today's
+    move size or the overnight gap (daily correlation with the suite 0.25).
+
+  RULES
+    R1 Session = 09:30-16:00 New York. Range of a session = high - low.
+       Yesterday must be a full session and its range must be the smallest
+       of the last 4 full sessions.
+    R2 Opening range = 09:30-10:00 (six 5-minute bars, none missing).
+    R3 From 10:05 to 13:00: the first 5-minute bar that CLOSES above the
+       opening-range high -> long at market; below its low -> short.
+    R4 Attached stop 0.25 x avg range (mean high-low of the last 14 full
+       sessions). No target. One trade a day. Flat at 15:55.
+       Holiday-shortened days: no trade.
+
+  MEASURED (this file in the mock, NQ 1-minute data 2017-01 .. 2024-03, 1 MNQ,
+  $2.50 per round trip)
+    412 trades | 43.7% winners | profit factor 1.42 | net +$7,768 |
+    $89 per month (median $22) | 47 of 87 months positive | best month
+    +$1,618, worst -$861 | max drawdown -$1,318 | longest losing streak 8 |
+    3 best trades = 32% of the net | long +$3,940, short +$3,828 |
+    average win $146, average loss -$80.
+    By year: 2017 -298, 2018 +1,002, 2019 +274, 2020 +660, 2021 +2,164,
+    2022 +2,948, 2023 +999, 2024 (to March) +20.
+    2017-2021: PF 1.36, $63/month. 2022-2024: PF 1.49, $151/month.
+    At $5.00 per round trip: $77/month.
+    Positive in both periods for NR3-NR7, opening ranges of 15-60 minutes,
+    stops 0.15-0.4 x range, last entry 12:00-15:00 (all 15 settings tried).
+    IT DOES NOT CARRY OVER TO ES: the same rule on ES lost in 2017-2021
+    (PF 0.69) and won in 2022-2024 (PF 1.78). Treat it as an NQ-specific
+    result, like the gap opening drive of the momentum suite.
+    NOT TESTED: anything after 2024-03-07.

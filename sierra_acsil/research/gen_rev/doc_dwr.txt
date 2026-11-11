@@ -1,0 +1,133 @@
+/*============================================================================
+  DailyWashoutRebound_NQ_MNQ  v1  --  engine + orders + hardening
+  (The two lines above stay at the very top of the file.)
+
+  WHAT IT DOES
+    Cross-day mean reversion, long only. After a short, sharp sell-off in the
+    DAILY closes the index tends to bounce during the next day session. The
+    study measures the sell-off with a 2-period RSI of the last day-session
+    closes; below 30 it buys the 09:30 open and holds to 15:55 with a wide
+    volatility stop. Nothing here looks at intraday momentum: it buys
+    weakness, on about one day in four.
+
+  SOURCE OF THE IDEA
+    Kaufman, Trading Systems and Methods 5th ed. (RSI and short-term
+    overbought / oversold; patterns after a down close); Chan, Quantitative
+    Trading / Algorithmic Trading (mean reversion of index returns at the
+    daily horizon); the 2-period RSI is Connors' form of it. Checked here
+    against five other definitions of "washed out" (close in the low fifth
+    of the day's range, 2 and 3 down closes, a new 5- or 10-day low close,
+    5-day return below -1 sd): every one was positive in both test periods.
+    The mirror (sell after a run-up) was NOT: it is an input and is off.
+
+  RULES
+    R1 Session = 09:30-16:00 New York. Day-session close = the last trade
+       before 16:00. RSI = Wilder RSI, length 2, of the returns between
+       day-session closes (holiday-shortened sessions count; a session with
+       under 35 percent of its bars does not). Needs 10 closes first.
+    R2 avg range = mean high-low of the last 14 full day sessions.
+    R3 On the 5-minute bar that ENDS at 09:30: RSI < 30 -> buy at market at
+       the open. (The chart must hold the 09:25 bar: load the overnight
+       session.) Holiday-shortened days: no trade.
+    R4 Attached stop 0.75 x avg range below the fill. No target.
+    R5 One trade a day. Flat at 15:55.
+
+  MEASURED (this file in the mock, NQ 1-minute data 2017-01 .. 2024-03, 1 MNQ,
+  $2.50 per round trip)
+    465 trades | 54.8% winners | profit factor 1.38 | net +$15,706 |
+    $181 per month (median $90) | 55 of 87 months positive | best month
+    +$1,968, worst -$2,700 | max drawdown -$3,546 | longest losing streak 7 |
+    3 best trades = 25% of the net | average win $223, average loss -$196.
+    By year: 2017 +504, 2018 -803, 2019 +712, 2020 +5,292, 2021 +3,084,
+    2022 +2,941, 2023 +3,116, 2024 (to March) +861.
+    2017-2021: PF 1.49, $146/month. 2022-2024: PF 1.30, $264/month.
+    At $5.00 per round trip: $167/month.
+    Positive in both periods for RSI thresholds 20-40 and stops 0.5-3.0 x
+    range. NOT for thresholds 10-15: the deepest washouts are not the best
+    ones. Entering at 09:35 instead of the open gave up about a third of the
+    edge. On ES the same rule is positive but weak (PF 1.09 / 1.14).
+    THE RISK IS THE STOP, NOT THE AVERAGE LOSS: a full stop is 0.75 x the
+    average day range (about $560 per MNQ if that range is 375 points). The
+    worst month (-$2,700) is what this script looks like when the market
+    keeps falling. A tight daily-loss halt makes it worse, not better.
+    NOT TESTED: anything after 2024-03-07.
+
+  ORDER LAYER (the layer of the MNQ momentum suite, unchanged; lessons #1-#90)
+    O1  One trade at a time, one order: quantity N, MaximumPositionAllowed = N.
+    O2  The entry is a MARKET order that carries its own ATTACHED stop
+        (Stop1Offset = a distance from the actual fill, so slippage never
+        changes the risk). No target, no stop modification: targets,
+        breakeven moves and trailing stops were tested and did not help.
+    O3  Entry on the first live call after the signal bar closes, at most 120 s
+        late (input). Every engine signal is logged "TRADED" or
+        "NOT traded -- <reason>".
+    O4  Size: fixed contracts, or risk % of the ACCOUNT SIZE INPUT (never the
+        broker balance) / the stop distance, capped by Max contracts; optional
+        max $ risk per trade (reduces, then skips).
+    O5  Risk halts, each OFF at 0: daily loss incl. the open trade (flattens),
+        daily profit lock, losing trades in a row, trades per day. Reset only
+        on a new trading day.
+    O6  Flat time 15:55 New York: position closed with
+        FlattenAndCancelAllOrders(); re-issued after 30 s, MANUAL ACTION line
+        after 10 tries. CME holiday / early-close sessions: no entries, flat
+        the same distance before the halt.
+    O7  Reconciliation on every call from ONE position read: closed trades
+        classified from the CumulativeProfitLoss / TotalTrades delta; FILL
+        VERIFY once per fill; every contract covered by a working stop or
+        flatten after 5 s; orphan and inherited positions; working orders
+        while flat are cancelled.
+    O8  Full recalculation: trade state survives, the engine is rebuilt, the
+        first live call re-adopts or discards. Signals are keyed by time.
+    O9  Trade-behaviour settings are written on every call.
+    O10 Live orders need 'Allow LIVE orders' = Yes. CHART CHECK (New York time
+        zone, 5-minute bars, MNQ/NQ symbol, enough sessions) and the feed
+        checks (connected; not delayed for live) block entries.
+    ONE STRATEGY PER TRADE ACCOUNT: this study flattens a position it did not
+    open. Do not run it on the same account as another study of this
+    repository (including MomentumSuite) -- give each its own Sim account.
+
+  THREE BUILD STEPS IN ONE FILE
+    Step 1 (engine): 'Orders' = Signals only -> signals, lines and the TALLY,
+    no orders. Step 2 (orders) and Step 3 (hardening): 'Orders' = Send orders.
+
+  TEST RECORD (2026-11-11)
+    * g++ 13 -std=c++17 -Wall -Wextra against a behavioural mock of the ACSIL
+      calls used: 0 warnings in this file. NOT compiled against the Sierra
+      headers in this session and NOT yet built in your Sierra: the remote
+      build is the authority. The Sierra API surface is exactly that of the
+      momentum-suite files (same order layer); the engine adds only plain C++.
+    * Run unchanged in the mock with a simulated broker: 737,693 one-minute NQ
+      bars (2016-08 .. 2024-03, back-adjusted continuous) replayed as 4 ticks
+      each on 5-minute chart bars, 3.1 million study calls, AddressSanitizer
+      and UBSan clean.
+    * Trade-for-trade identical to an independent Python model of the rules
+      (same days, sides, entry prices and P&L; see README).
+    * Identical trades with full recalculations injected at two intervals,
+      with the study called once a minute only, and with every call doubled.
+    * Invariants on every tick: position <= MaximumPositionAllowed, flat
+      outside 09:30 .. 15:56, nothing working at the end -- 0 violations.
+    * Faults injected: wrong time zone (entries blocked), 12 failed flattens
+      (re-issued, MANUAL ACTION line), a position the study did not open
+      (flattened), risk-% sizing, $ cap, daily loss halt, signals-only mode.
+    A mock tests the code against my reading of Sierra, not against Sierra.
+
+  FIRST REPLAY CHECKS (unverified until seen in Sierra)
+    1 A MARKET parent with Stop1Offset creates the stop at fill -/+ offset
+      ("FILL VERIFY ok", difference 0.00).
+    2 One "engine SIGNAL #n ... TRADED / NOT traded" line per SIGNAL line.
+    3 Number of Open Trades = 0 at the end; every exit before 15:56.
+    4 The TALLY line after the chart loads is close to the Replay result
+      (the stops here are wide compared with a 5-minute bar, so it should be).
+  BACKTEST IN SIERRA
+    MNQ continuous contract (volume rollover, back-adjusted), 5-minute bars,
+    New York time zone, at least 30 days loaded before the start date. Trade
+    Simulation Mode ON, commission set. Clear trade data first. Chart >>
+    Replay Chart, Accurate Trading System Back Test mode. Own Sim account.
+
+  STORAGE: Persistent pointer 1 = Engine (heap, rebuilt on every full
+    recalculation); pointer 2 = Trader (heap, kept). Both freed on
+    LastCallToFunction. Closed bars are committed exactly once, in order.
+  INSTALL: copy to ACS_Source (no spaces in the name), Build Custom Studies
+    DLL, add the study to an MNQ 5-minute chart, New York time zone. Keep the
+    Trade Window "Attached Orders" list EMPTY. Message Log lines start "DWR".
+============================================================================*/

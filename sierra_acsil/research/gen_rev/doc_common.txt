@@ -1,0 +1,79 @@
+  ORDER LAYER (the layer of the MNQ momentum suite, unchanged; lessons #1-#90)
+    O1  One trade at a time, one order: quantity N, MaximumPositionAllowed = N.
+    O2  The entry is a MARKET order that carries its own ATTACHED stop
+        (Stop1Offset = a distance from the actual fill, so slippage never
+        changes the risk). No target, no stop modification: targets,
+        breakeven moves and trailing stops were tested and did not help.
+    O3  Entry on the first live call after the signal bar closes, at most 120 s
+        late (input). Every engine signal is logged "TRADED" or
+        "NOT traded -- <reason>".
+    O4  Size: fixed contracts, or risk % of the ACCOUNT SIZE INPUT (never the
+        broker balance) / the stop distance, capped by Max contracts; optional
+        max $ risk per trade (reduces, then skips).
+    O5  Risk halts, each OFF at 0: daily loss incl. the open trade (flattens),
+        daily profit lock, losing trades in a row, trades per day. Reset only
+        on a new trading day.
+    O6  Flat time 15:55 New York: position closed with
+        FlattenAndCancelAllOrders(); re-issued after 30 s, MANUAL ACTION line
+        after 10 tries. CME holiday / early-close sessions: no entries, flat
+        the same distance before the halt.
+    O7  Reconciliation on every call from ONE position read: closed trades
+        classified from the CumulativeProfitLoss / TotalTrades delta; FILL
+        VERIFY once per fill; every contract covered by a working stop or
+        flatten after 5 s; orphan and inherited positions; working orders
+        while flat are cancelled.
+    O8  Full recalculation: trade state survives, the engine is rebuilt, the
+        first live call re-adopts or discards. Signals are keyed by time.
+    O9  Trade-behaviour settings are written on every call.
+    O10 Live orders need 'Allow LIVE orders' = Yes. CHART CHECK (New York time
+        zone, 5-minute bars, MNQ/NQ symbol, enough sessions) and the feed
+        checks (connected; not delayed for live) block entries.
+    ONE STRATEGY PER TRADE ACCOUNT: this study flattens a position it did not
+    open. Do not run it on the same account as another study of this
+    repository (including MomentumSuite) -- give each its own Sim account.
+
+  THREE BUILD STEPS IN ONE FILE
+    Step 1 (engine): 'Orders' = Signals only -> signals, lines and the TALLY,
+    no orders. Step 2 (orders) and Step 3 (hardening): 'Orders' = Send orders.
+
+  TEST RECORD (2026-11-11)
+    * g++ 13 -std=c++17 -Wall -Wextra against a behavioural mock of the ACSIL
+      calls used: 0 warnings in this file. NOT compiled against the Sierra
+      headers in this session and NOT yet built in your Sierra: the remote
+      build is the authority. The Sierra API surface is exactly that of the
+      momentum-suite files (same order layer); the engine adds only plain C++.
+    * Run unchanged in the mock with a simulated broker: 737,693 one-minute NQ
+      bars (2016-08 .. 2024-03, back-adjusted continuous) replayed as 4 ticks
+      each on 5-minute chart bars, 3.1 million study calls, AddressSanitizer
+      and UBSan clean.
+    * Trade-for-trade identical to an independent Python model of the rules
+      (same days, sides, entry prices and P&L; see README).
+    * Identical trades with full recalculations injected at two intervals,
+      with the study called once a minute only, and with every call doubled.
+    * Invariants on every tick: position <= MaximumPositionAllowed, flat
+      outside 09:30 .. 15:56, nothing working at the end -- 0 violations.
+    * Faults injected: wrong time zone (entries blocked), 12 failed flattens
+      (re-issued, MANUAL ACTION line), a position the study did not open
+      (flattened), risk-% sizing, $ cap, daily loss halt, signals-only mode.
+    A mock tests the code against my reading of Sierra, not against Sierra.
+
+  FIRST REPLAY CHECKS (unverified until seen in Sierra)
+    1 A MARKET parent with Stop1Offset creates the stop at fill -/+ offset
+      ("FILL VERIFY ok", difference 0.00).
+    2 One "engine SIGNAL #n ... TRADED / NOT traded" line per SIGNAL line.
+    3 Number of Open Trades = 0 at the end; every exit before 15:56.
+    4 The TALLY line after the chart loads is close to the Replay result
+      (the stops here are wide compared with a 5-minute bar, so it should be).
+  BACKTEST IN SIERRA
+    MNQ continuous contract (volume rollover, back-adjusted), 5-minute bars,
+    New York time zone, at least 30 days loaded before the start date. Trade
+    Simulation Mode ON, commission set. Clear trade data first. Chart >>
+    Replay Chart, Accurate Trading System Back Test mode. Own Sim account.
+
+  STORAGE: Persistent pointer 1 = Engine (heap, rebuilt on every full
+    recalculation); pointer 2 = Trader (heap, kept). Both freed on
+    LastCallToFunction. Closed bars are committed exactly once, in order.
+  INSTALL: copy to ACS_Source (no spaces in the name), Build Custom Studies
+    DLL, add the study to an MNQ 5-minute chart, New York time zone. Keep the
+    Trade Window "Attached Orders" list EMPTY. Message Log lines start "@TAGNAME@".
+============================================================================*/
